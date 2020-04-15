@@ -1,47 +1,23 @@
 #' Run a specified number of simulations with identical parameters
 #' @author Joel Hellewell
-#' @param n.sim number of simulations to run
-#' @param num.initial.cases Initial number of cases in each initial cluster
-#' @param num.initial.clusters Number of initial clusters
-#' @param prop.ascertain Probability that cases are ascertained by contact tracing
-#' @param cap_max_days Maximum number of days to run process for
-#' @param cap_cases Maximum number of cases to run process for
-#' @param r0isolated basic reproduction number for isolated cases
-#' @param r0community basic reproduction number for non-isolated cases
-#' @param disp.iso dispersion parameter for negative binomial distribution for isolated cases
-#' @param disp.com dispersion parameter for negative binomial distribution for non-isolated cases
-#' @param delay_shape shape of distribution for delay between symptom onset and isolation
-#' @param delay_scale scale of distribution for delay between symptom onset and isolation
-#'
-#' @importFrom purrr safely
-#' @return
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#' res <- scenario_sim(n.sim = 5,
-#' num.initial.cases = 5,
-#' cap_max_days = 365,
-#' cap_cases = 2000,
-#' r0isolated = 0,
-#' r0community = 2.5,
-#' disp.iso = 1,
-#' disp.com = 0.16,
-#' k = 0.7,
-#' delay_shape = 2.5,
-#' delay_scale = 5,
-#' prop.asym = 0,
-#' prop.ascertain = 0)
-#' #' }
-#'
-scenario_sim <- function(n.sim = NULL, prop.ascertain = NULL, cap_max_days = NULL, cap_cases = NULL,
+
+source("R/outbreak_model.R")
+
+library(tidyverse)
+library(data.table)
+
+
+scenario_sim <- function(n.sim = NULL, p_traced = NULL, cap_max_days = NULL, cap_cases = NULL,
                          r0isolated = NULL, r0community = NULL, disp.iso = NULL, disp.com = NULL, k = NULL,
-                         delay_shape = NULL, delay_scale = NULL, num.initial.cases = NULL, prop.asym = NULL,
-                         quarantine = NULL) {
+                         delay_shape = NULL, delay_scale = NULL, num.initial.cases = NULL, p_asymptomatic = NULL,
+                         quarantine = NULL, backtrace = NULL, sero_test = NULL, report = NULL,
+                         run_new = NULL) {
+  
+  if (!is.null(report)){cat(report, ": ", sep="")}
 
   # Run n.sim number of model runs and put them all together in a big data.frame
-  res <- purrr::map(.x = 1:n.sim, ~ outbreak_model(num.initial.cases = num.initial.cases,
-                                             prop.ascertain = prop.ascertain,
+  res_list <- purrr::map(.x = 1:n.sim, ~ outbreak_model(num.initial.cases = num.initial.cases,
+                                             p_traced = p_traced,
                                              cap_max_days = cap_max_days,
                                              cap_cases = cap_cases,
                                              r0isolated = r0isolated,
@@ -51,12 +27,19 @@ scenario_sim <- function(n.sim = NULL, prop.ascertain = NULL, cap_max_days = NUL
                                              delay_shape = delay_shape,
                                              delay_scale = delay_scale,
                                              k = k,
-                                             prop.asym = prop.asym,
-                                             quarantine = quarantine))
-
+                                             p_asymptomatic = p_asymptomatic,
+                                             quarantine = quarantine,
+                                             backtrace = backtrace,
+                                             sero_test = sero_test,
+                                             run_new = run_new
+                                             ))
 
   # bind output together and add simulation index
-  res <- data.table::rbindlist(res)
-  res[, sim := rep(1:n.sim, rep(floor(cap_max_days / 7) + 1, n.sim)), ]
+  res <- data.table::rbindlist(lapply(1:n.sim, function(n) res_list[[n]] <- res_list[[n]][, sim := n]))
+  # res <- data.table::rbindlist(res_list)
+  # res[, sim := rep(1:n.sim, rep(floor(cap_max_days / 7) + 1, n.sim)), ] # WJB: This might win my award for kludge of the year
+  
+  if (!is.null(report)){cat(timestamp(quiet=TRUE), "\n")}
+  
   return(res)
 }

@@ -1,13 +1,6 @@
 #' Create partial function to sample from gamma distributions
 #' @author Joel Hellewell
-#' @param dist_shape numeric shape parameter of Weibull distribution
-#' @param dist_scale numeric scale parameter of Weibull distribution
-#'
-#' @return partial function that takes a numeric argument for number of samples
-#' @export
-#' @importFrom purrr partial
-#' @examples
-#'
+
 dist_setup <- function(dist_shape = NULL, dist_scale = NULL) {
   out <- purrr::partial(rweibull,
                  shape = dist_shape,
