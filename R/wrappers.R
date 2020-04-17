@@ -14,7 +14,9 @@ scenario_sim <- function(n_iterations = NULL, r0_base = NULL, dispersion = NULL,
                          delay_scale = NULL, incubation_shape = NULL,
                          incubation_scale = NULL, generation_omega = NULL,
                          generation_k = NULL, report = NULL,
-                         n_initial_cases = NULL, cap_cases = NULL){
+                         n_initial_cases = NULL, cap_cases = NULL,
+                         rollout_delay_generations = NULL,
+                         rollout_delay_days = NULL){
     #' Run a specified number of simulations with identical parameters
     if (!is.null(report) & !is.na(report)){cat(report, ": ", sep="")}
     # Run each iteration
@@ -32,7 +34,9 @@ scenario_sim <- function(n_iterations = NULL, r0_base = NULL, dispersion = NULL,
                                             incubation_shape = incubation_shape,
                                             incubation_scale = incubation_scale,
                                             generation_omega = generation_omega,
-                                            generation_k = generation_k, cap_cases = cap_cases))
+                                            generation_k = generation_k, cap_cases = cap_cases,
+                                            rollout_delay_generations = rollout_delay_generations,
+                                            rollout_delay_days = rollout_delay_days))
     # Label and concatenate
     results <- lapply(1:n_iterations, function(n) iter_out[[n]][, sim:= n]) %>%
         data.table::rbindlist(fill = TRUE)
@@ -67,7 +71,10 @@ parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
         p_isolation = .$p_isolation, delay_shape = .$delay_shape, cap_cases = .$cap_cases,
         delay_scale = .$delay_scale, incubation_shape = .$incubation_shape,
         incubation_scale = .$incubation_scale, generation_omega = .$generation_omega,
-        generation_k = .$generation_k, report = ifelse(report, .$report, NA))))
+        generation_k = .$generation_k, 
+        rollout_delay_generations = .$rollout_delay_generations,
+        rollout_delay_days = .$rollout_delay_days,
+        report = ifelse(report, .$report, NA))))
     # Unnest for analysis
     scenario_sims_out <- scenario_sims %>% tidyr::unnest(c("data", "sims"))
     # TODO: Debug future case, set up multiprocessing

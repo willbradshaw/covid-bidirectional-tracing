@@ -27,7 +27,8 @@ rep_new_cases <- function(tab, col){
 
 generate_new_cases <- function(parents, p_asymptomatic, p_traced, k,
                                generation_time, incubation_time, delay_time,
-                               p_isolation){
+                               p_isolation, rollout_delay_days,
+                               rollout_delay_generations){
     #' Generate a table of new child cases from a table of parent cases
     data.table(infector = rep_new_cases(parents, "case_id"), # Parent case
                infector_onset_gen = rep_new_cases(parents, "onset_gen"), # Symptom onset of parent
@@ -47,10 +48,12 @@ generate_new_cases <- function(parents, p_asymptomatic, p_traced, k,
     # Symptom onset for determining generation time # TODO: Refactor gentime so can drop
     .[, onset_gen := exposure + incubation_time(nrow(.))] %>%
     # True symptom onset (infinite for asymptomatic individuals)
-    .[, onset_true := ifelse(asym, Inf, onset_gen)] %>%
+        .[, onset_true := ifelse(asym, Inf, onset_gen)] %>%
     # Maximum isolation time (if untraced)
-    .[, iso_time_untraced := onset_true + delay_time(nrow(.))] %>%
-    .[, isolation_time := iso_time_untraced] # TODO: I think adding this line means I can remove references to iso_time_untraced in trace_forward?
+        .[, isolation_time := pmax(onset_true, rollout_delay_days) +
+              delay_time(nrow(.))] %>%
+        .[, isolation_time := ifelse(generation < rep(rollout_delay_generations, nrow(.)),
+                                     Inf, isolation_time)]
 }  # TODO: Pass a distribution of compliance rates to be sampled by each parent case, rather than a fixed point value?
 
 terminate_extinct <- function(cases){
@@ -73,8 +76,8 @@ trace_forward <- function(cases, quarantine, sero_test){
     # TODO: Pass parent and child tables separately, merge in-function
     # TODO: Generalise infector_iso_time to general fwd_tracing_time (to account for delays etc)
     # TODO: Distinguish quarantine time from isolation time; tracing determines the former
-    cases %>% copy %>% .[, isolation_time := ifelse(!traced_fwd, pmin(iso_time_untraced, isolation_time),
-                                                    pmin(iso_time_untraced, isolation_time,
+    cases %>% copy %>% .[, isolation_time := ifelse(!traced_fwd, isolation_time,
+                                                    pmin(isolation_time,
                                                          ifelse(rep(!quarantine && !sero_test, nrow(.)),
                                                          pmax(onset_true, infector_iso_time),
                                                          infector_iso_time)))] %>% return
@@ -236,7 +239,8 @@ compute_weekly_cases <- function(case_data, max_weeks){
 }
 
 compute_symptomatic_r0 <- function(r0_base, r0_asymptomatic, p_asymptomatic){
-    (r0_base - r0_asymptomatic*p_asymptomatic)/(1-p_asymptomatic)
+    ifelse(p_asymptomatic==1, 0,
+           (r0_base - r0_asymptomatic*p_asymptomatic)/(1-p_asymptomatic))
 }
 
 #----------------------------------------------------------------------------
@@ -244,32 +248,36 @@ compute_symptomatic_r0 <- function(r0_base, r0_asymptomatic, p_asymptomatic){
 #----------------------------------------------------------------------------
 
 outbreak_setup <- function(n_initial_cases, p_asymptomatic,
-                           incubation_time, delay_time, p_isolation){
+                           incubation_time, delay_time, p_isolation,
+                           rollout_delay_generations, rollout_delay_days){
     #' Set up a table of initial cases
-    data.table(infector = 0, infector_onset_gen = Inf, infector_onset_true = Inf,
-               infector_iso_time = Inf, infector_asym = NA, generation = 0,
-               processed = FALSE, n_children = NA, exposure = 0,
-               case_id = 1:n_initial_cases,
-               traced_fwd = FALSE, traced_rev = FALSE) %>%
-    .[, `:=`(asym = purrr::rbernoulli(nrow(.), p_asymptomatic), # Asymptomatic?
-             escapes_isolation = purrr::rbernoulli(n = nrow(.), p = 1-p_isolation),
-             # Symptom onset for determining generation time (TODO: refactor gentime so can drop)
-             onset_gen = incubation_time(nrow(.)))] %>%
-    # True symptom onset (infinite for asymptomatic individuals)
-    .[, onset_true := ifelse(asym, Inf, onset_gen)] %>%
-    # Maximum isolation time (if untraced)
-    .[, iso_time_untraced := onset_true + delay_time(nrow(.))] %>%
-    # Initial isolation time = maximum
-    .[, isolation_time := iso_time_untraced]
+    cases <- data.table(infector = 0, infector_onset_gen = Inf, 
+                        infector_onset_true = Inf,
+                        infector_iso_time = Inf, infector_asym = NA, 
+                        generation = 0, processed = FALSE, n_children = NA,
+                        exposure = 0, case_id = 1:n_initial_cases,
+                        traced_fwd = FALSE, traced_rev = FALSE) %>%
+        .[, `:=`(asym = purrr::rbernoulli(nrow(.), p_asymptomatic), # Asymptomatic?
+                 escapes_isolation = purrr::rbernoulli(n = nrow(.), p = 1-p_isolation),
+                 # Symptom onset for determining generation time (TODO: refactor gentime so can drop)
+                 onset_gen = incubation_time(nrow(.)))] %>%
+        # True symptom onset (infinite for asymptomatic individuals)
+        .[, onset_true := ifelse(asym, Inf, onset_gen)] %>%
+        # Maximum isolation time (if untraced)
+        .[, isolation_time := pmax(onset_true, rollout_delay_days) +
+              delay_time(nrow(.))]
+    if (rollout_delay_generations > 0) cases$isolation_time <- Inf
+    return(cases)
 }
 
 outbreak_step <- function(case_data = NULL, dispersion = NULL,
-                                    r0_symptomatic = NULL, r0_asymptomatic = NULL,
-                                    p_asymptomatic = NULL, p_traced = NULL,
-                                    generation_time = NULL, incubation_time = NULL,
-                                    delay_time = NULL, backtrace_distance = NULL,
-                                    quarantine = NULL, sero_test = NULL,
-                                    p_isolation = NULL){
+                          r0_symptomatic = NULL, r0_asymptomatic = NULL,
+                          p_asymptomatic = NULL, p_traced = NULL,
+                          generation_time = NULL, incubation_time = NULL,
+                          delay_time = NULL, backtrace_distance = NULL,
+                          quarantine = NULL, sero_test = NULL,
+                          p_isolation = NULL, rollout_delay_generations = NULL,
+                          rollout_delay_days = NULL){
     #' Move forward one generation in the branching process
     # Separate current parents from previous generations and draw new cases
     case_data_old <- case_data %>% .[processed == TRUE]
@@ -282,7 +290,9 @@ outbreak_step <- function(case_data = NULL, dispersion = NULL,
     # Generate putative secondary cases
     children_putative <- generate_new_cases(case_data_new, p_asymptomatic,
                                             p_traced, k, generation_time,
-                                            incubation_time, delay_time, p_isolation)
+                                            incubation_time, delay_time, p_isolation,
+                                            rollout_delay_days,
+                                            rollout_delay_generations)
     # Filter secondary cases based on isolation time of parents # TODO: Add quarantine time
     children_filtered <- filter_new_cases(children_putative)
     # Determine isolation time of remaining secondary cases
@@ -309,7 +319,8 @@ outbreak_model <- function(n_initial_cases = NULL, r0_base = NULL,
                            delay_shape = NULL, delay_scale = NULL,
                            incubation_shape = NULL, incubation_scale = NULL,
                            generation_omega = NULL, generation_k = NULL,
-                           cap_cases = NULL){
+                           cap_cases = NULL, rollout_delay_generations = NULL,
+                           rollout_delay_days = NULL){
     #' Run a single complete instance of the branching-process model
     # Set up incubation, generation-time, and delay distributions
     # TODO: Generalise these / replace with Ferretti functions
@@ -333,7 +344,9 @@ outbreak_model <- function(n_initial_cases = NULL, r0_base = NULL,
     latest_generation <- 0
     # Set up initial cases
     case_data <- outbreak_setup(n_initial_cases, p_asymptomatic,
-                                incubation_time, delay_time, p_isolation)
+                                incubation_time, delay_time, p_isolation,
+                                rollout_delay_generations,
+                                rollout_delay_days)
     # Run outbreak loop
     while (latest_exposure_weeks < cap_max_weeks & total_cases < cap_cases &
            !outbreak_extinct & latest_generation <= cap_max_generations){
@@ -345,7 +358,9 @@ outbreak_model <- function(n_initial_cases = NULL, r0_base = NULL,
                                        incubation_time = incubation_time,
                                        delay_time = delay_time, p_isolation = p_isolation,
                                        quarantine = quarantine, sero_test = sero_test,
-                                       backtrace_distance = backtrace_distance)
+                                       backtrace_distance = backtrace_distance,
+                             rollout_delay_generations = rollout_delay_generations,
+                             rollout_delay_days = rollout_delay_days)
         case_data <- out[["cases"]]
         latest_generation <- latest_generation + 1
         effective_r0_vect[latest_generation] <- out[["effective_r0"]]
