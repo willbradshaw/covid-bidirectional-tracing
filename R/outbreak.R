@@ -49,7 +49,8 @@ generate_new_cases <- function(parents, p_asymptomatic, p_traced, k,
     # True symptom onset (infinite for asymptomatic individuals)
     .[, onset_true := ifelse(asym, Inf, onset_gen)] %>%
     # Maximum isolation time (if untraced)
-    .[, iso_time_untraced := onset_true + delay_time(nrow(.))]
+    .[, iso_time_untraced := onset_true + delay_time(nrow(.))] %>%
+    .[, isolation_time := iso_time_untraced] # TODO: I think adding this line means I can remove references to iso_time_untraced in trace_forward?
 }  # TODO: Pass a distribution of compliance rates to be sampled by each parent case, rather than a fixed point value?
 
 terminate_extinct <- function(cases){
@@ -64,7 +65,7 @@ filter_new_cases <- function(cases){
     # TODO: Pass parent and child tables separately, merge in-function
     # TODO: Generalise filter column (currently only infector_iso_time)
     # Separate out previously-escaped cases and cases that precede parent's isolation
-    cases[exposure < infector_iso_time | escapes_isolation == TRUE]
+    return(cases[exposure < infector_iso_time | escapes_isolation == TRUE])
 }
 
 trace_forward <- function(cases, quarantine, sero_test){
@@ -72,11 +73,11 @@ trace_forward <- function(cases, quarantine, sero_test){
     # TODO: Pass parent and child tables separately, merge in-function
     # TODO: Generalise infector_iso_time to general fwd_tracing_time (to account for delays etc)
     # TODO: Distinguish quarantine time from isolation time; tracing determines the former
-    cases %>% .[, isolation_time := ifelse(!traced_fwd, iso_time_untraced,
-                                           pmin(iso_time_untraced,
-                                                ifelse(rep(!quarantine && !sero_test, nrow(.)),
-                                                       pmax(onset_true, infector_iso_time),
-                                                       infector_iso_time)))]
+    cases %>% copy %>% .[, isolation_time := ifelse(!traced_fwd, pmin(iso_time_untraced, isolation_time),
+                                                    pmin(iso_time_untraced, isolation_time,
+                                                         ifelse(rep(!quarantine && !sero_test, nrow(.)),
+                                                         pmax(onset_true, infector_iso_time),
+                                                         infector_iso_time)))] %>% return
     # - Default untraced isolation time depends on syptomatic status
     # - If missed in forward tracing, isolation time defaults to untraced time
     # - Otherwise, isolation time is the minimum of the untraced and traced times
@@ -85,61 +86,99 @@ trace_forward <- function(cases, quarantine, sero_test){
     # - For asymptomatic individuals, this means isolation time is infinite unless quarantined/tested
     # - For individuals with untraced asymptomatic parents (i.e. parents with infinite onset),
     #   this produces the untraced time in all cases (TODO: test this)
+    # - If an individual has already been traced in the past (e.g. through backtracing),
+    #   re-running trace_forward does not reset its isolation time to the untraced time (TODO: Consider this more thoroughly)
 }
 
-run_backtrace_nstep <- function(cases, quarantine, sero_test,
-                                max_distance){
-    #' Perform backtracing up to some specified number of generations before
-    #' the most recent generation.
-    # Determine which generations to act on and separate out others
-    gen_latest <- max(cases$generation)
-    gen_earliest <- max(0, gen_latest - max_distance)
-    cases_old <- cases[generation < gen_earliest] # Keep unchanged for later
-    cases_act <- cases[generation >= gen_earliest]
-    # Split remaining cases by generation, then copy for initial upwards trace
-    cases_split <- split(cases_act, by="generation") # NB: generation labels are *strings*
-    cases_up <- cases_split
-    # Upwards trace: starting with latest generation, identify cases whose 
-    # isolation time precedes that of parent and filter by backtrace success
-    for (k in seq(gen_latest, gen_earliest+1)){
-        cases_pre_filtered <- cases_up[[as.character(k)]] %>%
-            .[traced_rev == TRUE] %>% .[isolation_time < infector_iso_time]
-        if (nrow(cases_pre_filtered) == 0){k <- k + 1; break}
-            # Determine new isolation times of traced parents for each backtrace option
-        cases_iso_new <- cases_pre_filtered %>%
-            .[, infector_iso_new := pmin(infector_iso_time,
-                                         ifelse(rep(!quarantine && !sero_test, nrow(.)),
+run_backtrace_update_parent_isolation <- function(cases){
+    #' Update parent isolation times in case table
+    # Separate out individuals whose parents aren't in table (e.g. gen-0-ers)
+    cases_no_parent <- cases[!(infector %in% cases$case_id)]
+    cases_parent <- cases[infector %in% cases$case_id]
+    # Get updated parental isolation times for latter
+    parent_iso_indices <- match(cases_parent$infector, cases$case_id)
+    parent_isos <- cases$isolation_time[parent_iso_indices]
+    cases_parent[, infector_iso_time := parent_isos]
+    return(rbind(cases_no_parent, cases_parent, fill=TRUE))
+}
+
+run_backtrace_update_filter <- function(cases_merged, gen_earliest,
+                                        quarantine, sero_test){
+    #' Perform update, filter and forward tracing steps during backtracing
+    cases_updated <- run_backtrace_update_parent_isolation(cases_merged)
+    # Remove entries whose exposure now succeeds parent isolation time
+    cases_filtered <- filter_new_cases(cases_updated)
+    # Remove entries whose parents are no longer in dataset
+    nodes_orphaned <- cases_filtered %>% 
+        .[generation > gen_earliest & !(infector %in% .$case_id)] %>% .$case_id
+    while (length(nodes_orphaned) > 0){
+        cases_filtered <- cases_filtered[!(case_id %in% nodes_orphaned)]
+        nodes_orphaned <- cases_filtered %>% 
+            .[generation > gen_earliest & !(infector %in% .$case_id)] %>% .$case_id
+    }
+    # Forward trace remaining entries
+    cases_retraced <- trace_forward(cases_filtered, quarantine, sero_test)
+    setindex(cases_retraced, "infector")
+    # Test for inequality with input and return
+    changed <- !isTRUE(all.equal(cases_merged, cases_retraced))
+    return(list(cases=cases_retraced, changed=changed))
+}
+
+run_backtrace_iter <- function(cases_iter, gen_earliest, quarantine, sero_test){
+    #' Perform backtracing on all cases in a (pre-filtered) dataframe
+    # 1. Look for everyone preceding their parent in isolation time
+    #    and filter by backtrace success (and whether parent is in cases at all)
+    cases_pre_filtered <- cases_iter %>% 
+        .[traced_rev == TRUE & isolation_time < infector_iso_time &
+              infector %in% .$case_id]
+    if (nrow(cases_pre_filtered) == 0) return(list(cases=cases_iter, changed=FALSE))
+    # 2. Determine new putative parental isolation times
+    cases_iso_new <- cases_pre_filtered %>%
+        .[, infector_iso_new := pmin(infector_iso_time,
+                                     ifelse(rep(!quarantine && !sero_test, nrow(.)),
                                             pmax(infector_onset_true, isolation_time),
                                             isolation_time))] %>%
-            .[infector_iso_new < infector_iso_time] # Fairly sure this filter is pointless, but JIC
-        if (nrow(cases_iso_new) == 0){k <- k + 1; break}
-        # New parent isolation time becomes min across all successful backtraces
-        parents_backtraced <- cases_iso_new[, .(infector_iso_new = min(infector_iso_new)),
-                                            by = "infector"]
-        # Copy new parental isolation time to children (other copy), then to parents (don't filter yet)
-        cases_split[[as.character(k)]] <- merge(cases_split[[as.character(k)]], parents_backtraced, 
-                                                by="infector", all=TRUE) %>%
-            .[, infector_iso_time := pmin(infector_iso_time, infector_iso_new, na.rm=TRUE)] %>%
-            .[,infector_iso_new:=NULL]
-        cases_split[[as.character(k-1)]] <- parents_backtraced %>% 
-            setnames("infector", "case_id") %>%
-            setnames("infector_iso_new", "isolation_time_new") %>% 
-            merge(cases_up[[as.character(k-1)]], by="case_id", all=TRUE) %>%
-            .[, isolation_time := pmin(isolation_time, isolation_time_new, na.rm=TRUE)]
-        cases_up[[as.character(k-1)]] <- cases_split[[as.character(k-1)]][!is.na(isolation_time_new)]
-        cases_split[[as.character(k-1)]][,isolation_time_new:=NULL]
-        cases_up[[as.character(k-1)]][,isolation_time_new:=NULL]
+        .[infector_iso_new < infector_iso_time] # Fairly sure this filter is pointless, but JIC
+    if (nrow(cases_iso_new) == 0) return(list(cases=cases_iter, changed=FALSE))
+    # 3. New parent isolation time becomes min across all successful backtraces
+    parents_backtraced <- cases_iso_new[, .(infector_iso_new = min(infector_iso_new)),
+                                        by = "infector"]
+    parents_backtraced_renamed <- parents_backtraced %>% copy %>%
+        setnames(c("infector", "infector_iso_new"), c("case_id", "isolation_time_new"))
+    # 4. Update isolation times in parent entries
+    cases_merged <- merge(cases_iter, parents_backtraced_renamed, by="case_id", all=TRUE) %>%
+        .[, isolation_time := pmin(isolation_time, isolation_time_new, na.rm=TRUE)] %>%
+        .[, isolation_time_new := NULL]
+    # 5. Iterate update, filter and forward-trace steps until convergence
+    cases_updated <- run_backtrace_update_filter(cases_merged, gen_earliest, 
+                                                 quarantine, sero_test)
+    while(cases_updated$changed){
+        cases_updated <- run_backtrace_update_filter(cases_updated$cases, gen_earliest,
+                                                     quarantine, sero_test)
     }
-    if (k > gen_latest) return(cases) # Aborted at first generation; nothing to be done
-    # Downwards trace: starting with generation k, prune cases that occur after parental 
-    # isolation or whose parents were pruned, then repeat forward tracing
-    for (l in seq(k, gen_latest)){
-        parent_ids <- cases_split[[as.character(l-1)]]$case_id
-        cases_split[[as.character(l)]] <- cases_split[[as.character(l)]] %>%
-            .[infector %in% parent_ids] %>% filter_new_cases() %>%
-            trace_forward(quarantine, sero_test)
+    # Test for inequality with input and return
+    setindex(cases_updated$cases, "infector")
+    changed <- !isTRUE(all.equal(cases_iter, cases_updated$cases))
+    return(list(cases=cases_updated$cases, changed=changed))
+}
+
+run_backtrace_nstep <- function(cases_iso, quarantine, sero_test,
+                                backtrace_distance){
+    #' Perform backtracing up to some specified number of generations before
+    #' the most recent generation.
+    if (backtrace_distance == 0) return(cases_iso)
+    # Determine which generations to act on and separate out others
+    gen_latest <- max(cases_iso$generation)
+    gen_earliest <- max(0, gen_latest - backtrace_distance)
+    cases_old <- cases_iso[generation < gen_earliest] # Keep unchanged for later
+    cases_act <- cases_iso[generation >= gen_earliest]
+    # Run first iteration of backtracing
+    setindex(cases_act, "infector")
+    cases_iter <- run_backtrace_iter(cases_act, gen_earliest, quarantine, sero_test)
+    while(cases_iter$changed){
+        cases_iter <- run_backtrace_iter(cases_iter$cases, gen_earliest, quarantine, sero_test)
     }
-    return(rbind(cases_old, data.table::rbindlist(cases_split, fill=TRUE), fill=TRUE))
+    return(rbind(cases_old, cases_iter$cases, fill=TRUE))
 }
 
 run_backtrace_1step <- function(cases, quarantine, sero_test){
@@ -178,7 +217,7 @@ terminate_open <- function(cases){
     return(list(cases = cases,
                 cases_in_generation = n_latest,
                 effective_r0 = n_latest/n_prev))
-}
+} # TODO: Collapse terminate functions into one function with a switch
 
 compute_weekly_cases <- function(case_data, max_weeks){
     #' Convert a database of case reports into one of weekly case counts
@@ -207,8 +246,8 @@ compute_symptomatic_r0 <- function(r0_base, r0_asymptomatic, p_asymptomatic){
 outbreak_setup <- function(n_initial_cases, p_asymptomatic,
                            incubation_time, delay_time, p_isolation){
     #' Set up a table of initial cases
-    data.table(infector = 0, infector_onset_gen = NA, infector_onset_true = NA,
-               infector_iso_time = NA, infector_asym = NA, generation = 0,
+    data.table(infector = 0, infector_onset_gen = Inf, infector_onset_true = Inf,
+               infector_iso_time = Inf, infector_asym = NA, generation = 0,
                processed = FALSE, n_children = NA, exposure = 0,
                case_id = 1:n_initial_cases,
                traced_fwd = FALSE, traced_rev = FALSE) %>%
@@ -224,7 +263,7 @@ outbreak_setup <- function(n_initial_cases, p_asymptomatic,
     .[, isolation_time := iso_time_untraced]
 }
 
-outbreak_step_backtrace <- function(case_data = NULL, dispersion = NULL,
+outbreak_step <- function(case_data = NULL, dispersion = NULL,
                                     r0_symptomatic = NULL, r0_asymptomatic = NULL,
                                     p_asymptomatic = NULL, p_traced = NULL,
                                     generation_time = NULL, incubation_time = NULL,
@@ -256,12 +295,8 @@ outbreak_step_backtrace <- function(case_data = NULL, dispersion = NULL,
     # Perform backtracing, if applicable
     cases_iso <- data.table::rbindlist(list(case_data_old, case_data_new, children_iso),
                                        fill=TRUE)
-    if (backtrace_distance > 0) {
-        cases_out <- run_backtrace_nstep(cases_iso, quarantine, sero_test, 
-                                         backtrace_distance)
-    } else {
-        cases_out <- cases_iso
-    }
+    cases_out <- run_backtrace_nstep(cases_iso, quarantine, sero_test, 
+                                     backtrace_distance)
     return(terminate_open(cases_out))
 }
 
@@ -302,7 +337,7 @@ outbreak_model <- function(n_initial_cases = NULL, r0_base = NULL,
     # Run outbreak loop
     while (latest_exposure_weeks < cap_max_weeks & total_cases < cap_cases &
            !outbreak_extinct & latest_generation <= cap_max_generations){
-        out <- outbreak_step_backtrace(case_data = case_data, dispersion = dispersion,
+        out <- outbreak_step(case_data = case_data, dispersion = dispersion,
                                        r0_symptomatic = r0_symptomatic,
                                        r0_asymptomatic = r0_asymptomatic,
                                        p_asymptomatic = p_asymptomatic, p_traced = p_traced,
