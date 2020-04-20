@@ -7,16 +7,22 @@ library(data.table)
 library(sn)
 
 #----------------------------------------------------------------------------
-# Auxiliary functions
+# Create new cases
 #----------------------------------------------------------------------------
 
-draw_new_cases <- function(parents, r0_sym, r0_asym, dispersion){
-    #' Calculate the number of new cases produced by each individual in a
-    #' parent case dataset by sampling from a negative binomial distribution,
-    #' with mean=r0 depending on whether the individual is asymptomatic.
-    return(parents %>% .[, n_children := rnbinom(n=nrow(.), size = dispersion,
-                                          mu = ifelse(asym, r0_asym, r0_sym))])
-} # TODO: Remember to filter out older generations before running this
+set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
+                                         test_time, p_ident_sym){
+    #' Set primary immutable keys for index cases
+    data.table(case_id = 1:n_initial_cases,
+               asym = purrr::rbernoulli(n_initial_cases, p_asymptomatic),
+               blocked_isolation = NA, # These two are for child cases only
+               blocked_quarantine = NA,
+               test_delay = test_time(n_initial_cases),
+               ident_sym = purrr::rbernoulli(n_initial_cases, p_ident_sym),
+               generation = 0, infector_id = 0, infector_onset_gen = NA,
+               infector_onset_true = NA, infector_asym = NA, 
+               infector_has_smartphone = NA)
+}
 
 map2_tab <- function(tab, col1, col2, fn){
     unlist(purrr::map2(tab[[col1]], tab[[col2]], function(x, y) fn(x,y)))
@@ -25,36 +31,149 @@ rep_new_cases <- function(tab, col){
     map2_tab(tab, col, "n_children", function(x,y) rep(x, as.integer(y)))
 }
 
+set_primary_immutables_child <- function(parents, p_asymptomatic, p_blocked_isolation,
+                                         p_blocked_quarantine, test_time, p_ident_sym){
+    #' Set primary immutable keys for index cases
+    n_children_total <- sum(parents$n_children)
+    case_ids <- max(parents$case_id)+1:n_children_total
+    child_cases <- data.table(case_id = case_ids,
+                              asym = purrr::rbernoulli(n_children_total, p_asymptomatic),
+                              blocked_isolation = purrr::rbernoulli(n_children_total, p_blocked_isolation),
+                              blocked_quarantine = purrr::rbernoulli(n_children_total, p_blocked_quarantine),
+                              test_delay = test_time(n_children_total),
+                              ident_sym = purrr::rbernoulli(n_children_total, p_ident_sym),
+                              generation = rep_new_cases(parents, "generation") + 1, # New generation number
+                              infector_id = rep_new_cases(parents, "case_id"), # Parent case
+                              infector_onset_gen = rep_new_cases(parents, "onset_gen"), # Symptom onset of parent
+                              infector_onset_true = rep_new_cases(parents, "onset_true"), # Symptom onset of parent
+                              infector_asym = rep_new_cases(parents, "asym"), # Is parent asymptomatic?
+                              infector_has_smartphone = rep_new_cases(parents, "has_smartphone")) # Is parent asymptomatic?
+    return(child_cases)
+}
+
+create_child_cases <- function(parents, p_asymptomatic, p_blocked_isolation,
+                               p_blocked_quarantine, test_time, p_ident_sym,
+                               ...){
+    #' Generate a table of new child cases from a table of parent cases
+    cases <- set_primary_immutables_child(parents, p_asymptomatic,
+                                          p_blocked_isolation,
+                                          p_blocked_quarantine,
+                                          test_time, p_ident_sym)
+}
+
+
 generate_new_cases <- function(parents, p_asymptomatic, p_traced, k,
                                generation_time, incubation_time, delay_time,
                                p_isolation, rollout_delay_days,
                                rollout_delay_generations){
-    #' Generate a table of new child cases from a table of parent cases
-    data.table(infector = rep_new_cases(parents, "case_id"), # Parent case
-               infector_onset_gen = rep_new_cases(parents, "onset_gen"), # Symptom onset of parent
-               infector_onset_true = rep_new_cases(parents, "onset_true"), # Symptom onset of parent
-               infector_iso_time = rep_new_cases(parents, "isolation_time"), # Parent's iso time
-               infector_asym = rep_new_cases(parents, "asym"), # Is parent asymptomatic?
-               generation = rep_new_cases(parents, "generation") + 1, # New generation number
+    data.table(                              infector_iso_time = rep_new_cases(parents, "isolation_time"), # Parent's iso time
+
                processed = FALSE, n_children = NA) %>%
-    .[,`:=`(exposure = generation_time(infector_onset_gen),
-            # TODO: Refactor generation time to depend on parent's exposure, rather than onset?
-            asym = purrr::rbernoulli(n = nrow(.), p = p_asymptomatic),
-            # Successfully traced from parent?
-            traced_fwd = purrr::rbernoulli(n = nrow(.), p = p_traced),
-            # Successful backtracing to parent (if used)?
-            traced_rev = purrr::rbernoulli(n = nrow(.), p = p_traced),
-            escapes_isolation = purrr::rbernoulli(n = nrow(.), p = 1-p_isolation))] %>%
-    # Symptom onset for determining generation time # TODO: Refactor gentime so can drop
-    .[, onset_gen := exposure + incubation_time(nrow(.))] %>%
-    # True symptom onset (infinite for asymptomatic individuals)
+        .[,`:=`(exposure = generation_time(infector_onset_gen),
+                # TODO: Refactor generation time to depend on parent's exposure, rather than onset?
+                asym = purrr::rbernoulli(n = nrow(.), p = p_asymptomatic),
+                # Successfully traced from parent?
+                traced_fwd = purrr::rbernoulli(n = nrow(.), p = p_traced),
+                # Successful backtracing to parent (if used)?
+                traced_rev = purrr::rbernoulli(n = nrow(.), p = p_traced),
+                escapes_isolation = purrr::rbernoulli(n = nrow(.), p = 1-p_isolation))] %>%
+        # Symptom onset for determining generation time # TODO: Refactor gentime so can drop
+        .[, onset_gen := exposure + incubation_time(nrow(.))] %>%
+        # True symptom onset (infinite for asymptomatic individuals)
         .[, onset_true := ifelse(asym, Inf, onset_gen)] %>%
-    # Maximum isolation time (if untraced)
+        # Maximum isolation time (if untraced)
         .[, isolation_time := pmax(onset_true, rollout_delay_days) +
               delay_time(nrow(.))] %>%
         .[, isolation_time := ifelse(generation < rep(rollout_delay_generations, nrow(.)),
                                      Inf, isolation_time)]
 }  # TODO: Pass a distribution of compliance rates to be sampled by each parent case, rather than a fixed point value?
+
+
+set_secondary_immutables <- function(cases, index, p_smartphone_overall,
+                                     p_smartphone_parent_yes, p_smartphone_parent_no,
+                                     generation_time,
+                                     dispersion, r0_asymptomatic, r0_symptomatic,
+                                     incubation_time, p_traced_auto, p_traced_manual,
+                                     trace_time_auto, trace_time_manual,
+                                     recovery_time, test_function){
+    #' Set secondary immutable keys
+    cases %>% .[, `:=`(has_smartphone = ifelse(rep(index, nrow(.)), p_smartphone_overall,
+                                               ifelse(infector_has_smartphone,
+                                                      p_smartphone_parent_yes,
+                                                      p_smartphone_parent_no)),
+                       exposure = ifelse(rep(index, nrow(.)), 0,
+                                         generation_time(infector_onset_gen)),
+                       n_children = rnbinom(n=nrow(.), size = dispersion,
+                                            mu = ifelse(asym, r0_asymptomatic, 
+                                                        r0_symptomatic)),
+                       processed = FALSE)] %>% # (Not technically immutable, but independent of tracing)
+        .[, `:=`(auto_traced = infector_has_smartphone & has_smartphone,
+                 onset_gen := exposure + incubation_time(nrow(.)))] %>%
+        .[, `:=`(traceable_fwd = purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual)),
+                 traceable_rev = purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual)),
+                 trace_delay = ifelse(auto_traced, trace_time_auto(nrow(.)), trace_time_manual(nrow(.))),
+                 onset_true = ifelse(asym, Inf, onset_gen),
+                 recovery = recovery_time(onset_gen))] %>%
+        .[, test_positive = test_function(recovery)]
+}
+
+set_nonparental_mutables <- function(cases, trace_neg_symptomatic){
+    #' Set values of nonparental mutable keys (except identification time)
+    cases %>% .[, `:=`(quarantine_time = identification_time,
+                       isolation_time = ifelse(!asym, quarantine_time,
+                                               ifelse(test_positive, quarantine_time + test_delay,
+                                                      Inf)),
+                       trace_init_time = ifelse(!asym & rep(trace_neg_symptomatic, nrow(.)),
+                                                quarantine_time,
+                                                ifelse(test_positive, quarantine_time + test_delay,
+                                                       Inf)))]
+}
+
+create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
+                               p_ident_sym, p_smartphone_overall,
+                               r0_asymptomatic, r0_symptomatic,
+                               incubation_time, p_traced_auto,
+                               p_traced_manual, trace_time_auto,
+                               trace_time_manual, recovery_time,
+                               test_function, rollout_delay_gen,
+                               rollout_delay_days, delay_time,
+                               trace_neg_symptomatic){
+    #' Set up a table of index cases
+    # Set immutable keys
+    cases <- set_primary_immutable_index(n_initial_cases, p_asymptomatic,
+                                         test_time, p_ident_sym)
+    cases <- set_secondary_immutable(cases, TRUE, p_smartphone_overall,
+                                     NA, NA, NA,
+                                     dispersion, r0_asymptomatic, r0_symptomatic,
+                                     incubation_time, p_traced_auto, p_traced_manual,
+                                     trace_time_auto, trace_time_manual,
+                                     recovery_time, test_function)
+    # Set identification time (inc. rollout delay) and parent mutables
+    cases <- cases %>% .[, `:=`(parent_ident_time = NA,
+                                parent_quar_time = NA,
+                                parent_iso_time = NA,
+                                parent_trace_init_time = NA,
+                                identification_time = ifelse(rep(rollout_delay_gen > 0, nrow(.)), Inf,
+                                                             ifelse(recovery < rollout_delay_days, Inf,
+                                                                    onset_true + delay_time(nrow(.)))))]
+    # Set other mutable keys
+    cases <- set_nonparental_mutables(cases, trace_neg_symptomatic)
+    return(cases)
+}
+
+
+
+
+
+
+
+
+
+
+
+#----------------------------------------------------------------------------
+# Auxiliary functions
+#----------------------------------------------------------------------------
 
 terminate_extinct <- function(cases){
     #' End-of-step cleanup for extinction case
@@ -67,7 +186,6 @@ filter_new_cases <- function(cases){
     # TODO: Add quarantine time here as well
     # TODO: Pass parent and child tables separately, merge in-function
     # TODO: Generalise filter column (currently only infector_iso_time)
-    # Separate out previously-escaped cases and cases that precede parent's isolation
     return(cases[exposure < infector_iso_time | escapes_isolation == TRUE])
 }
 
