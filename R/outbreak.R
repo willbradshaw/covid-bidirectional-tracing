@@ -59,6 +59,8 @@ create_child_cases <- function(parents, p_asymptomatic, p_blocked_isolation,
                                           p_blocked_isolation,
                                           p_blocked_quarantine,
                                           test_time, p_ident_sym)
+    # TODO: Set secondary immutables, parental mutables, nonparental mutables
+    
 }
 
 
