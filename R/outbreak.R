@@ -24,8 +24,10 @@ set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
     #' Set primary immutable keys for index cases
     data.table(case_id = 1:n_initial_cases,
                asym = purrr::rbernoulli(n_initial_cases, p_asymptomatic),
-               blocked_isolation = NA, # These two are for child cases only
-               blocked_quarantine = NA, test_serological = test_serological,
+               blocked_isolation = NA, # These three only matter for child cases
+               blocked_quarantine = NA,
+               environmental = TRUE, # But this one shouldn't be NA
+               test_serological = test_serological,
                test_delay = test_time(n_initial_cases), # TODO: Attach testing to child? (would allow multiple testing during reverse tracing)
                testable = purrr::rbernoulli(n_initial_cases, test_sensitivity), # TODO: See above
                ident_sym = purrr::rbernoulli(n_initial_cases, p_ident_sym),
@@ -36,7 +38,7 @@ set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
 
 set_primary_immutables_child <- function(parents, p_asymptomatic, p_blocked_isolation,
                                          p_blocked_quarantine, test_time, test_serological,
-                                         test_sensitivity, p_ident_sym){
+                                         test_sensitivity, p_ident_sym, p_environmental){
     #' Set primary immutable keys for index cases
     n_children_total <- sum(parents$n_children)
     case_ids <- max(parents$case_id) + 1:n_children_total
@@ -44,6 +46,7 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_blocked_isol
                               asym = purrr::rbernoulli(n_children_total, p_asymptomatic),
                               blocked_isolation = purrr::rbernoulli(n_children_total, p_blocked_isolation),
                               blocked_quarantine = purrr::rbernoulli(n_children_total, p_blocked_quarantine),
+                              environmental = purrr::rbernoulli(n_children_total, p_environmental),
                               test_delay = test_time(n_children_total),
                               test_serological = test_serological,
                               testable = purrr::rbernoulli(n_children_total, test_sensitivity),
@@ -79,8 +82,8 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                        processed = FALSE)] %>% # (Not actually immutable, but independent of tracing)
         .[, `:=`(auto_traced = infector_has_smartphone & has_smartphone,
                  onset_gen = exposure + incubation_time(nrow(.)))] %>%
-        .[, `:=`(traceable_fwd = purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual)),
-                 traceable_rev = purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual)),
+        .[, `:=`(traceable_fwd = ifelse(environmental, FALSE, purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual))),
+                 traceable_rev = ifelse(environmental, FALSE, purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual))),
                  trace_delay_fwd = ifelse(auto_traced, trace_time_auto(nrow(.)), trace_time_manual(nrow(.))),
                  trace_delay_rev = ifelse(auto_traced, trace_time_auto(nrow(.)), trace_time_manual(nrow(.))),
                  onset_true = ifelse(asym, Inf, onset_gen),
@@ -195,14 +198,15 @@ create_child_cases <- function(parents, p_asymptomatic, p_blocked_isolation,
                                contact_limit_auto_asym, contact_limit_auto_sym,
                                contact_limit_manual_asym, contact_limit_manual_sym,
                                rollout_delay_gen,
-                               rollout_delay_days, delay_time){
+                               rollout_delay_days, delay_time, p_environmental){
     #' Generate a table of new child cases from a table of parent cases
     # Set immutable keys
     cases <- set_primary_immutables_child(parents = parents, p_asymptomatic = p_asymptomatic,
                                           p_blocked_isolation = p_blocked_isolation,
                                           p_blocked_quarantine = p_blocked_quarantine,
                                           test_time = test_time, test_serological = test_serological,
-                                          test_sensitivity = test_sensitivity, p_ident_sym = p_ident_sym)
+                                          test_sensitivity = test_sensitivity, p_ident_sym = p_ident_sym,
+                                          p_environmental = p_environmental)
     cases <- set_secondary_immutables(cases = cases, index = FALSE, p_smartphone_overall = NA,
                                       p_smartphone_infector_yes = p_smartphone_infector_yes,
                                       p_smartphone_infector_no = p_smartphone_infector_no,
@@ -498,7 +502,8 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                          rollout_delay_gen = NULL, rollout_delay_days = NULL,
                          p_blocked_isolation = NULL, p_blocked_quarantine = NULL,
                          cap_max_generations = NULL, cap_max_weeks = NULL,
-                         cap_cases = NULL, backtrace_distance = NULL
+                         cap_cases = NULL, backtrace_distance = NULL,
+                         p_environmental = NULL
                          ){
     #' Run a specified number of outbreaks with identical parameters
     if (!is.null(report) & !is.na(report)){
@@ -576,7 +581,8 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                                     contact_limit_manual_sym = contact_limit_manual_sym,
                                     rollout_delay_gen = rollout_delay_gen,
                                     rollout_delay_days = rollout_delay_days,
-                                    delay_time = delay_time)        
+                                    delay_time = delay_time,
+                                    p_environmental = p_environmental)        
     # Execute runs
     iter_out <- purrr::map(.x = 1:n_iterations,
                            ~ run_outbreak(index_case_fn = index_case_fn,
