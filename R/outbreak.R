@@ -315,7 +315,7 @@ trace_reverse_iter <- function(cases, gen_earliest){
     cases_merged <- merge(cases, parents_backtraced_renamed, by="case_id", all=TRUE) %>%
         .[, identification_time := pmin(identification_time, identification_time_new, 
                                         na.rm=TRUE)] %>%
-        .[, isolation_time_new := NULL]
+        .[, identification_time_new := NULL]
     cases_parents_updated <- set_nonparental_mutables(cases_merged)
     # 5. Iterate child-update, filter and forward-trace steps until convergence
     cases_updated <- trace_reverse_update_filter(cases_parents_updated, gen_earliest)
@@ -589,75 +589,7 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
     results_raw <- lapply(1:n_iterations, function(n) iter_out[[n]][, sim:= n]) %>%
         data.table::rbindlist(fill = TRUE)
     if (!is.null(report) & !is.na(report)){
-        cat(date(), " (", timetaken(), ")\n", sep="")
+        cat(" to ", date(), " (", timetaken(start), ")\n", sep="")
     }
     return(results_raw) # NB: Depending on memory footprint, might need to summarise these here
 }
-
-
-
-outbreak_model <- function(n_initial_cases = NULL, r0_base = NULL,
-                           dispersion = NULL, cap_max_weeks = NULL,
-                           cap_max_generations = NULL, r0_asymptomatic = NULL,
-                           p_asymptomatic = NULL, p_traced = NULL,
-                           backtrace_distance = NULL, quarantine = NULL,
-                           sero_test = NULL, p_isolation = NULL,
-                           delay_shape = NULL, delay_scale = NULL,
-                           incubation_shape = NULL, incubation_scale = NULL,
-                           generation_omega = NULL, generation_k = NULL,
-                           cap_cases = NULL, rollout_delay_generations = NULL,
-                           rollout_delay_days = NULL){
-    #' Run a single complete instance of the branching-process model
-    # Set up incubation, generation-time, and delay distributions
-    # TODO: Generalise these / replace with Ferretti functions
-    # Compute symptomatic R0
-    r0_symptomatic <- compute_symptomatic_r0(r0_base, r0_asymptomatic, p_asymptomatic)
-    # Set initial values for loop indices and preallocate space for metrics
-    # TODO: Change from cumulative case threshold to simultaneous
-    total_cases <- n_initial_cases
-    latest_exposure_days <- 0
-    latest_exposure_weeks <- 0
-    outbreak_extinct <- FALSE
-    effective_r0_vect <- numeric(cap_max_generations)
-    cases_in_gen_vect <- numeric(cap_max_generations)
-    latest_generation <- 0
-    # Set up initial cases
-    case_data <- outbreak_setup(n_initial_cases, p_asymptomatic,
-                                incubation_time, delay_time, p_isolation,
-                                rollout_delay_generations,
-                                rollout_delay_days)
-    # Run outbreak loop
-    while (latest_exposure_weeks < cap_max_weeks & total_cases < cap_cases &
-           !outbreak_extinct & latest_generation <= cap_max_generations){
-        out <- outbreak_step(case_data = case_data, dispersion = dispersion,
-                                       r0_symptomatic = r0_symptomatic,
-                                       r0_asymptomatic = r0_asymptomatic,
-                                       p_asymptomatic = p_asymptomatic, p_traced = p_traced,
-                                       generation_time = generation_time,
-                                       incubation_time = incubation_time,
-                                       delay_time = delay_time, p_isolation = p_isolation,
-                                       quarantine = quarantine, sero_test = sero_test,
-                                       backtrace_distance = backtrace_distance,
-                             rollout_delay_generations = rollout_delay_generations,
-                             rollout_delay_days = rollout_delay_days)
-        case_data <- out[["cases"]]
-        latest_generation <- latest_generation + 1
-        effective_r0_vect[latest_generation] <- out[["effective_r0"]]
-        cases_in_gen_vect[latest_generation] <- out[["cases_in_generation"]]
-        total_cases <- nrow(case_data)
-        latest_exposure_days <- max(case_data$exposure)
-        latest_exposure_weeks <- floor(latest_exposure_days / 7)
-        outbreak_extinct <- all(case_data$processed)
-    }
-    # Compute weekly cases and add final data
-    avg_effective_r0 <- sum(effective_r0_vect*cases_in_gen_vect)/
-        sum(cases_in_gen_vect)
-    weekly_cases <- compute_weekly_cases(case_data, cap_max_weeks) %>%
-        .[, `:=`(avg_effective_r0 = avg_effective_r0,
-                 cases_per_gen = paste(cases_in_gen_vect[1:latest_generation], collapse = "|"),
-                 final_total_cases = total_cases,
-                 outbreak_extinct = outbreak_extinct,
-                 final_generation = latest_generation)]
-    return(weekly_cases)
-}
-
