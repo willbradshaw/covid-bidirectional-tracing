@@ -36,7 +36,7 @@ map_scenario <- function(scenario, n_iterations, report){
         backtrace_distance = scenario$backtrace_distance,
         p_environmental = scenario$p_environmental,
         report = ifelse(report, scenario$report, NA))
-    return(map_scenario)
+    return(sim_out)
 }
 
 parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
@@ -44,17 +44,11 @@ parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
                             show_progress = NULL, report = FALSE){
     #' Run one set of simulations for each scenario in a table of scenarios
     # Nest scenarios into sub-tables
-    scenario_data <- scenarios %>% mutate(report = scenario) %>%
-        dplyr::group_by(scenario) %>%
-        tidyr::nest() %>%
-        dplyr::ungroup()
-    sim_fn <- function(n) map_scenario(scenarios[n,]$data, n_iterations, report)
-    print("testing1")
-    sim_data <- mclapply(1:nrow(scenarios), sim_fn, mc.cores = threads)
-    print("testing2")
+    scenario_data <- scenarios %>% mutate(report = scenario)
+    sim_fn <- function(n) map_scenario(scenario_data[n,], n_iterations, report)
+    sim_data <- mclapply(1:nrow(scenario_data), sim_fn, mc.cores = threads)
     scenario_sims <- scenario_data %>% mutate(sims = sim_data) %>%
-        tidyr::unnest(c("data", "sims"))
-    print("testing3")
+        tidyr::unnest("sims")
     return(scenario_sims)
 }
 
