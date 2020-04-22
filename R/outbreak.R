@@ -27,7 +27,7 @@ set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
                blocked_isolation = NA, # These three only matter for child cases
                blocked_quarantine = NA,
                environmental = TRUE, # But this one shouldn't be NA
-               test_serological = test_serological,
+               sero_test = test_serological,
                test_delay = test_time(n_initial_cases), # TODO: Attach testing to child? (would allow multiple testing during reverse tracing)
                testable = purrr::rbernoulli(n_initial_cases, test_sensitivity), # TODO: See above
                ident_sym = purrr::rbernoulli(n_initial_cases, p_ident_sym),
@@ -48,7 +48,7 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_blocked_isol
                               blocked_quarantine = purrr::rbernoulli(n_children_total, p_blocked_quarantine),
                               environmental = purrr::rbernoulli(n_children_total, p_environmental),
                               test_delay = test_time(n_children_total),
-                              test_serological = test_serological,
+                              sero_test = test_serological,
                               testable = purrr::rbernoulli(n_children_total, test_sensitivity),
                               ident_sym = purrr::rbernoulli(n_children_total, p_ident_sym),
                               generation = rep_new_cases(parents, "generation") + 1, # New generation number
@@ -129,7 +129,7 @@ set_nonparental_mutables <- function(cases){
     #' Set (or update) values of nonparental mutable keys (except identification time)
     cases %>% .[, `:=`(quarantine_time = identification_time,
                        test_positive = testable & (identification_time > exposure) &
-                           (test_serological | (identification_time < recovery)))] %>%
+                           (sero_test | (identification_time < recovery)))] %>%
         .[, `:=`(isolation_time = ifelse(!asym, quarantine_time,
                                          ifelse(test_positive, quarantine_time + test_delay,
                                                 Inf)),
@@ -411,22 +411,6 @@ update_parental_mutables <- function(cases){
 # Other auxiliary functions
 #----------------------------------------------------------------------------
 
-compute_weekly_cases <- function(case_data, max_weeks){
-    #' Convert a database of case reports into one of weekly case counts
-    # Compute weekly case counts
-    weekly_cases <- case_data[, week := floor(exposure / 7)] %>%
-        .[, .(weekly_cases = .N), by = week]
-    # Add missing weeks
-    missing_weeks <- (0:max_weeks)[!(0:max_weeks %in% weekly_cases$week)]
-    if (length(missing_weeks > 0)) {
-        missing_db <- data.table(week = missing_weeks, weekly_cases = 0)
-        weekly_cases <- rbind(weekly_cases, missing_db, fill=TRUE)
-    }
-    # Cut at max week (for some reason)
-    weekly_cases <- weekly_cases[week <= max_weeks]
-    return(weekly_cases)
-}
-
 compute_symptomatic_r0 <- function(r0_base, r0_asymptomatic, p_asymptomatic){
     ifelse(p_asymptomatic==1, 0,
            (r0_base - r0_asymptomatic*p_asymptomatic)/(1-p_asymptomatic))
@@ -503,7 +487,7 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                          p_blocked_isolation = NULL, p_blocked_quarantine = NULL,
                          cap_max_generations = NULL, cap_max_weeks = NULL,
                          cap_cases = NULL, backtrace_distance = NULL,
-                         p_environmental = NULL
+                         p_environmental = NULL, report = NULL
                          ){
     #' Run a specified number of outbreaks with identical parameters
     if (!is.null(report) & !is.na(report)){
@@ -592,7 +576,7 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                                           cap_cases = cap_cases,
                                           backtrace_distance = backtrace_distance))
     # Label and concatenate
-    results_raw <- lapply(1:n_iterations, function(n) iter_out[[n]][, sim:= n]) %>%
+    results_raw <- lapply(1:n_iterations, function(n) iter_out[[n]][, run := n]) %>%
         data.table::rbindlist(fill = TRUE)
     if (!is.null(report) & !is.na(report)){
         cat(" to ", date(), " (", timetaken(start), ")\n", sep="")
