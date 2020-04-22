@@ -2,10 +2,6 @@
 #'
 #' @author Joel Hellewell (original version), Will Bradshaw (modified version)
 
-library(tidyverse)
-library(data.table)
-library(sn)
-
 #----------------------------------------------------------------------------
 # Create new cases
 #----------------------------------------------------------------------------

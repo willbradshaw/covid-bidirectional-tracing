@@ -1,10 +1,5 @@
-#' Run a specified number of simulations with identical parameters
+#' Wrapper code for branching process model
 #' @author Joel Hellewell (original version), Will Bradshaw (modified version)
-
-source("R/outbreak.R")
-
-library(tidyverse)
-library(data.table)
 
 #------------------------------------------------------------------------------
 # Run parameter sweep

@@ -4,3 +4,6 @@
 .Ruserdata
 results/*
 *.swp
+.snakemake/*
+log_files/*
+output_files/*
