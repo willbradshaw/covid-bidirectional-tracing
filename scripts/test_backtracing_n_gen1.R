@@ -8,23 +8,22 @@ source("R/wrappers.R")
 #------------------------------------------------------------------------------
 
 n_iterations <- 100
-test_name <- "backtracing_n_big_gen"
+test_name <- "backtracing_n_gen"
 
-var_params <- c("backtrace_distance", "p_traced", "rollout_delay_generations",
-                "p_asymptomatic")
+var_params <- c("backtrace_distance", "p_traced", "rollout_delay_generations")
 cap_max_weeks <- 52
 cap_cases <- 5000
 cap_max_generations <- 100
 
 scenarios <- tidyr::expand_grid(
   # Varying parameters
-  p_traced = seq(0.4, 1, 0.2),
+  p_traced = c(0.8, 1),
   backtrace_distance = c(0,1,Inf),
-  p_asymptomatic = c(0.25, 0.5),
-  rollout_delay_generations = 0:4,
+  rollout_delay_generations = c(0,2,4),
   # Set parameters
+  n_initial_cases = 20,#c(5,20),
+  p_asymptomatic = 0.5,
   rollout_delay_days = 0,
-  n_initial_cases = 20,
   sero_test = TRUE,
   quarantine = FALSE, # Currently redundant with sero_test
   r0_base = 2.5,
@@ -95,22 +94,31 @@ assign(paste0("outcomes_", test_name, "_final"),
 #------------------------------------------------------------------------------
 # TODO: Follow up on generation counts
 
-g_backtracing_n_big_gen <- ggplot(outcomes_backtracing_n_big_gen_final,
-                              aes(x=p_traced, y=p_controlled,
+g_gen_counts <- gen_counts_backtracing_n_gen %>% 
+  group_by(backtrace_distance, p_traced, rollout_delay_generations, generation) %>% 
+  summarise(cases = mean(cases_per_gen)) %>% ggplot() + 
+  geom_line(aes(x=generation, y=cases, colour=factor(backtrace_distance))) + 
+  facet_grid(p_traced ~ rollout_delay_generations) + 
+  xlim(c(0,10)) + ylim(c(0,1000))
+
+g_backtracing_n_gen <- ggplot(outcomes_backtracing_n_gen_final,
+                              aes(x=rollout_delay_generations, y=p_controlled,
                                   colour = factor(backtrace_distance))) +
-  geom_line() +
+  geom_line(aes(linetype = factor(rollout_delay_generations)) )+
   geom_point(size=2) +
   scale_y_continuous(name = "% of outbreaks controlled", limits = c(0,1),
                      breaks = seq(0,1,0.2)) +
   scale_x_continuous(name = "% of contacts traced", breaks = seq(0,1,0.2)) +
-  facet_grid(paste0(p_asymptomatic*100,"% asymptomatic")~paste(rollout_delay_generations, "gen.")) +
-  scale_colour_brewer(type = "div", palette = "Dark2", labels=c("0","1","∞"),
-                      name="Max. backtrace\ndistance") +
-    theme_bw() + theme(
-    legend.position = "right",
-    #legend.title = element_blank()
-  )
-
-ggsave(filename="figures/test_backtracing_n_big_gen.png",
-       plot = g_backtracing_n_big_gen, device="png", 
-       width=22, height=12, units="cm", dpi=320, limitsize=FALSE)
+#   facet_grid(paste0(p_asymptomatic*100,"% asymptomatic")~paste(rollout_delay_days, "days")) +
+#   scale_colour_brewer(type = "div", palette = "Dark2", labels=c("0","1","∞"),
+#                       name="Max. backtrace\ndistance") +
+#   #scale_linetype_discrete(labels = c("No backtracing", "Backtracing")) +
+#   #scale_shape_discrete(labels = c("No backtracing", "Backtracing")) +
+#   theme_bw() + theme(
+#     legend.position = "right",
+#     #legend.title = element_blank()
+#   )
+# 
+# ggsave(filename="test_backtracing_n_big.png",
+#        plot = g_backtracing_n_big, device="png", 
+#        width=22, height=12, units="cm", dpi=320, limitsize=FALSE)
