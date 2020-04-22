@@ -136,7 +136,8 @@ write_dfile <- function(data, path_prefix, compress = TRUE){
 write_data <- function(case_data, path_prefix, write_raw = FALSE,
                        write_weekly = FALSE, write_generational = FALSE,
                        write_run = FALSE, write_scenario = FALSE,
-                       compress = TRUE, group_vars = NULL){
+                       compress = TRUE, group_vars = NULL, ci_width = NULL,
+                       alpha_prior = NULL, beta_prior = NULL){
   #' Write simulated case data and summaries to file
   if (write_raw){
     write_dfile(case_data, paste0(path_prefix, "_raw"), compress)
@@ -154,7 +155,8 @@ write_data <- function(case_data, path_prefix, write_raw = FALSE,
     write_dfile(run_data, paste0(path_prefix, "_run"), compress)
   }
   if (write_scenario){
-    scenario_data <- summarise_by_scenario(case_data, group_vars)
+    scenario_data <- summarise_by_scenario(case_data, group_vars, ci_width,
+                                           alpha_prior, beta_prior)
     write_dfile(scenario_data, paste0(path_prefix, "_scenario"), compress)
   }
 }
@@ -168,21 +170,34 @@ simulate_process <- function(scenario_parameters = NULL, n_iterations = NULL,
                              show_progress = NULL, path_prefix = NULL,
                              write_raw = NULL, write_weekly = NULL,
                              write_generational = NULL, write_run = NULL,
-                             write_scenario = NULL, compress_output = NULL){
+                             write_scenario = NULL, compress_output = NULL,
+                             log_path = NULL, ci_width = NULL,
+                             alpha_prior = NULL, beta_prior = NULL){
   #' Generate a table of scenarios, run parameter sweep, and write output
+  if (!is.null(log_path) && !is.na(log_path)){
+    log_file <- file(log_path, "wt")
+    sink(log_file)
+    sink(log_file, type = "message")
+  }
   # 1. Generate scenario table from input list of name/value combinations
   scenarios <- scenario_parameters %>% 
     expand.grid(KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE) %>%
     as_tibble %>% dplyr::mutate(scenario = 1:dplyr::n())
   # 2. Run parameter sweep
   sweep <- parameter_sweep(scenarios = scenarios, n_iterations = n_iterations,
-                           parallel = parellel, report = report,
+                           parallel = parallel, report = report,
                            show_progress = show_progress)
   # 3. Write data and summaries
   write_data(case_data = sweep, path_prefix = path_prefix,
              write_raw = write_raw, write_weekly = write_weekly,
              write_generational = write_generational,
              write_run = write_run, write_scenario = write_scenario,
-             compress = compress_output, group_vars = colnames(scenarios))
-    
+             compress = compress_output, group_vars = colnames(scenarios),
+             ci_width = ci_width, alpha_prior = alpha_prior,
+             beta_prior = beta_prior)
+  if (!is.null(log_path) && !is.na(log_path)){
+    sink()
+    sink(type = "message")
+    close(log_file)
+  }
 }
