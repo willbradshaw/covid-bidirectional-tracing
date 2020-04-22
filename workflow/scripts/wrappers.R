@@ -5,41 +5,57 @@
 # Run parameter sweep
 #------------------------------------------------------------------------------
 
+map_scenario <- function(scenario, n_iterations, report){
+    #' Initiate a scenario simulation from a 1-row scenario table
+    sim_out <- scenario_sim(n_iterations = n_iterations,
+        dispersion = scenario$dispersion, r0_base = scenario$r0_base,
+        r0_asymptomatic = scenario$r0_asymptomatic, p_asymptomatic = scenario$p_asymptomatic,
+        generation_omega = scenario$generation_omega, generation_alpha = scenario$generation_alpha,
+        recovery_quantile = scenario$recovery_quantile, incubation_time = scenario$incubation_time,
+        test_time = scenario$test_time, trace_time_auto = scenario$trace_time_auto,
+        trace_time_manual = scenario$trace_time_manual, delay_time = scenario$delay_time,
+        n_initial_cases = scenario$n_initial_cases, test_sensitivity = scenario$test_sensitivity,
+        test_serological = scenario$test_serological, p_ident_sym = scenario$p_ident_sym,
+        p_smartphone_overall = scenario$p_smartphone_overall,
+        p_smartphone_link = scenario$p_smartphone_link,
+        trace_neg_symptomatic = scenario$trace_neg_symptomatic,
+        p_traced_auto = scenario$p_traced_auto,
+        p_traced_manual = scenario$p_traced_manual,
+        data_limit_auto = scenario$data_limit_auto,
+        data_limit_manual = scenario$data_limit_manual,
+        contact_limit_auto_asym = scenario$contact_limit_auto_asym,
+        contact_limit_auto_sym = scenario$contact_limit_auto_sym,
+        contact_limit_manual_asym = scenario$contact_limit_manual_asym,
+        contact_limit_manual_sym = scenario$contact_limit_manual_sym,
+        rollout_delay_gen = scenario$rollout_delay_gen,
+        rollout_delay_days = scenario$rollout_delay_days,
+        p_blocked_isolation = scenario$p_blocked_isolation,
+        p_blocked_quarantine = scenario$p_blocked_quarantine,
+        cap_max_generations = scenario$cap_max_generations,
+        cap_max_weeks = scenario$cap_max_weeks, cap_cases = scenario$cap_cases,
+        backtrace_distance = scenario$backtrace_distance,
+        p_environmental = scenario$p_environmental,
+        report = ifelse(report, scenario$report, NA))
+    return(map_scenario)
+}
+
 parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
+                            threads = NULL,
                             show_progress = NULL, report = FALSE){
-  #' Run one set of simulations for each scenario in a table of scenarios
-  # Nest scenarios into sub-tables
-  scenario_data <- scenarios %>% mutate(report = scenario) %>%
-    dplyr::group_by(scenario) %>%
-    tidyr::nest() %>%
-    dplyr::ungroup()
-  scenario_sims <- dplyr::mutate(scenario_data, sims = furrr::future_map(data, ~ scenario_sim(
-    n_iterations = n_iterations, dispersion = .$dispersion, r0_base = .$r0_base, 
-    r0_asymptomatic = .$r0_asymptomatic, p_asymptomatic = .$p_asymptomatic,
-    generation_omega = .$generation_omega, generation_alpha = .$generation_alpha,
-    recovery_quantile = .$recovery_quantile, incubation_time = .$incubation_time,
-    test_time = .$test_time, trace_time_auto = .$trace_time_auto,
-    trace_time_manual = .$trace_time_manual, delay_time = .$delay_time,
-    n_initial_cases = .$n_initial_cases, test_sensitivity = .$test_sensitivity,
-    test_serological = .$test_serological, p_ident_sym = .$p_ident_sym,
-    p_smartphone_overall = .$p_smartphone_overall, p_smartphone_link = .$p_smartphone_link,
-    trace_neg_symptomatic = .$trace_neg_symptomatic, p_traced_auto = .$p_traced_auto,
-    p_traced_manual = .$p_traced_manual, data_limit_auto = .$data_limit_auto,
-    data_limit_manual = .$data_limit_manual, 
-    contact_limit_auto_asym = .$contact_limit_auto_asym,
-    contact_limit_auto_sym = .$contact_limit_auto_sym,
-    contact_limit_manual_asym = .$contact_limit_manual_asym,
-    contact_limit_manual_sym = .$contact_limit_manual_sym,
-    rollout_delay_gen = .$rollout_delay_gen, rollout_delay_days = .$rollout_delay_days,
-    p_blocked_isolation = .$p_blocked_isolation,
-    p_blocked_quarantine = .$p_blocked_quarantine,
-    cap_max_generations = .$cap_max_generations,
-    cap_max_weeks = .$cap_max_weeks, cap_cases = .$cap_cases,
-    backtrace_distance = .$backtrace_distance,
-    p_environmental = .$p_environmental, report = ifelse(report, .$report, NA)),
-        .progress = show_progress)) %>%
-    tidyr::unnest(c("data", "sims"))
-  return(scenario_sims)
+    #' Run one set of simulations for each scenario in a table of scenarios
+    # Nest scenarios into sub-tables
+    scenario_data <- scenarios %>% mutate(report = scenario) %>%
+        dplyr::group_by(scenario) %>%
+        tidyr::nest() %>%
+        dplyr::ungroup()
+    sim_fn <- function(n) map_scenario(scenarios[n,]$data, n_iterations, report)
+    print("testing1")
+    sim_data <- mclapply(1:nrow(scenarios), sim_fn, mc.cores = threads)
+    print("testing2")
+    scenario_sims <- scenario_data %>% mutate(sims = sim_data) %>%
+        tidyr::unnest(c("data", "sims"))
+    print("testing3")
+    return(scenario_sims)
 }
 
 #------------------------------------------------------------------------------
@@ -157,7 +173,7 @@ write_data <- function(case_data, path_prefix, write_raw = FALSE,
 #------------------------------------------------------------------------------
 
 simulate_process <- function(scenario_parameters = NULL, n_iterations = NULL,
-                             report = NULL,
+                             report = NULL, threads = NULL,
                              show_progress = NULL, path_prefix = NULL,
                              write_raw = NULL, write_weekly = NULL,
                              write_generational = NULL, write_run = NULL,
@@ -177,10 +193,12 @@ simulate_process <- function(scenario_parameters = NULL, n_iterations = NULL,
     expand.grid(KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE) %>%
     as_tibble %>% dplyr::mutate(scenario = 1:dplyr::n())
   cat("Number of scenarios:", nrow(scenarios), "\n")
-  cat("Available cores:", availableCores(), "\n")
+  cat("Requested cores:", threads, "\n")
+  cat("Available cores:", detectCores(), "\n")
+  threads <- max(threads, detectCores())
   # 2. Run parameter sweep
   sweep <- parameter_sweep(scenarios = scenarios, n_iterations = n_iterations,
-                           report = report,
+                           report = report, threads = threads,
                            show_progress = show_progress)
   # 3. Write data and summaries
   write_data(case_data = sweep, path_prefix = path_prefix,
