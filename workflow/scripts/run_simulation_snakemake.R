@@ -3,9 +3,15 @@
 # Libraries and functions
 suppressMessages(library(tidyverse))
 suppressMessages(library(data.table))
+suppressMessages(library(future))
 suppressMessages(library(sn))
+suppressMessages(library(furrr))
 source("workflow/scripts/wrappers.R")
 source("workflow/scripts/outbreak.R")
+
+if (snakemake@threads > 1){
+    plan(multiprocess)
+} else {plan(sequential)}
 
 # Process scenario parameters for infinities
 sp <- snakemake@params[["scenario_parameters"]]
@@ -24,9 +30,8 @@ for (k in numeric_keys){
 # Run simulation
 simulate_process(scenario_parameters = sp,
                  n_iterations = snakemake@params[["n_iterations"]],
-                 parallel = snakemake@params[["parallel"]],
-                 report = !snakemake@params[["parallel"]],
-                 show_progress = snakemake@params[["parallel"]],
+                 report = snakemake@params[["report"]],
+                 show_progress = snakemake@params[["show_progress"]],
                  path_prefix = snakemake@params[["path_prefix"]],
                  write_raw = snakemake@params[["output_parameters"]][["write_raw"]],
                  write_weekly = snakemake@params[["output_parameters"]][["write_weekly"]],

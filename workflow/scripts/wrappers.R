@@ -6,19 +6,14 @@
 #------------------------------------------------------------------------------
 
 parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
-                            parallel = NULL, show_progress = NULL,
-                            report = FALSE){
+                            show_progress = NULL, report = FALSE){
   #' Run one set of simulations for each scenario in a table of scenarios
   # Nest scenarios into sub-tables
   scenario_data <- scenarios %>% mutate(report = scenario) %>%
     dplyr::group_by(scenario) %>%
     tidyr::nest() %>%
     dplyr::ungroup()
-  if (parallel) future::plan(future::multiprocess)
-  map_fn <- ifelse(parallel,
-                   function(...) furrr::future_map(..., .progress = show_progress),
-                   purrr::map) # TODO: Debug future version
-  scenario_sims <- dplyr::mutate(scenario_data, sims = map_fn(data, ~ scenario_sim(
+  scenario_sims <- dplyr::mutate(scenario_data, sims = furrr::future_map(data, ~ scenario_sim(
     n_iterations = n_iterations, dispersion = .$dispersion, r0_base = .$r0_base, 
     r0_asymptomatic = .$r0_asymptomatic, p_asymptomatic = .$p_asymptomatic,
     generation_omega = .$generation_omega, generation_alpha = .$generation_alpha,
@@ -41,7 +36,8 @@ parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
     cap_max_generations = .$cap_max_generations,
     cap_max_weeks = .$cap_max_weeks, cap_cases = .$cap_cases,
     backtrace_distance = .$backtrace_distance,
-    p_environmental = .$p_environmental, report = ifelse(report, .$report, NA)))) %>%
+    p_environmental = .$p_environmental, report = ifelse(report, .$report, NA)),
+        .progress = show_progress)) %>%
     tidyr::unnest(c("data", "sims"))
   return(scenario_sims)
 }
@@ -161,7 +157,7 @@ write_data <- function(case_data, path_prefix, write_raw = FALSE,
 #------------------------------------------------------------------------------
 
 simulate_process <- function(scenario_parameters = NULL, n_iterations = NULL,
-                             parallel = NULL, report = NULL,
+                             report = NULL,
                              show_progress = NULL, path_prefix = NULL,
                              write_raw = NULL, write_weekly = NULL,
                              write_generational = NULL, write_run = NULL,
@@ -173,14 +169,18 @@ simulate_process <- function(scenario_parameters = NULL, n_iterations = NULL,
     log_file <- file(log_path, "wt")
     sink(log_file)
     sink(log_file, type = "message")
+    start <- proc.time()
+    cat("Beginning simulation: ", date(), "\n", sep="")
   }
   # 1. Generate scenario table from input list of name/value combinations
   scenarios <- scenario_parameters %>% 
     expand.grid(KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE) %>%
     as_tibble %>% dplyr::mutate(scenario = 1:dplyr::n())
+  cat("Number of scenarios:", nrow(scenarios), "\n")
+  cat("Available cores:", availableCores(), "\n")
   # 2. Run parameter sweep
   sweep <- parameter_sweep(scenarios = scenarios, n_iterations = n_iterations,
-                           parallel = parallel, report = report,
+                           report = report,
                            show_progress = show_progress)
   # 3. Write data and summaries
   write_data(case_data = sweep, path_prefix = path_prefix,
@@ -191,6 +191,7 @@ simulate_process <- function(scenario_parameters = NULL, n_iterations = NULL,
              ci_width = ci_width, alpha_prior = alpha_prior,
              beta_prior = beta_prior)
   if (!is.null(log_path) && !is.na(log_path)){
+    cat("End of simulation: ", date(), " (", timetaken(start), ")\n", sep="")
     sink()
     sink(type = "message")
     close(log_file)
