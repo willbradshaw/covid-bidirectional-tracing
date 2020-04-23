@@ -481,7 +481,8 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
     }
     # Compute auxiliary parameters
     r0_symptomatic <- compute_symptomatic_r0(r0_base, r0_asymptomatic, p_asymptomatic)
-    p_smartphone_infector_yes <- p_smartphone_link
+    p_smartphone_infector_yes <- ifelse(p_smartphone_link == Inf, p_smartphone_overall,
+                                        p_smartphone_link)
     p_smartphone_infector_no <- compute_p_smartphone_infector_no(p_smartphone_overall,
                                                              p_smartphone_infector_yes)
     # Prepare fixed-shape distributions
