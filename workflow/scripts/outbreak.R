@@ -360,10 +360,10 @@ update_parental_mutables <- function(cases){
                         infector_iso_time = cases$isolation_time[parent_indices],
                         infector_trace_init_time = cases$isolation_time[parent_indices])]
     # 4. Update secondary parental mutables
-    cases_parent[, `:=`(in_data_threshold_fwd = (exposure + data_limit > infector_trace_init_time),
-                        in_contact_threshold_fwd = (exposure + contact_limit_fwd > ifelse(!infector_asym,
-                                                                                          infector_onset_true,
-                                                                                          infector_trace_init_time)))]
+    cases_parent[, `:=`(in_data_threshold_fwd = (exposure + data_limit >= infector_trace_init_time),
+                        in_contact_threshold_fwd = exposure + contact_limit >= pmin(infector_onset_true,
+                                                                         infector_trace_init_time))]
+    
     # 5. Combine with parentless cases and return
     return(rbind(cases_no_parent, cases_parent, fill=TRUE))
 }
