@@ -18,7 +18,7 @@ numeric_keys <- c("r0_base", "r0_asymptomatic", "dispersion", "generation_omega"
                   "cap_max_generations", "cap_max_weeks", "cap_cases",
                   "backtrace_distance")
 for (k in numeric_keys){
-    sp[[k]] <- as.numeric(sp[[k]])
+    sp[[k]] <- as.numeric(unlist(sp[[k]]))
 }
 
 # Run simulation
