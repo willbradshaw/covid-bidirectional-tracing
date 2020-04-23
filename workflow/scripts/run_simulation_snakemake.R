@@ -13,8 +13,8 @@ sp <- snakemake@params[["scenario_parameters"]]
 numeric_keys <- c("r0_base", "r0_asymptomatic", "dispersion", "generation_omega",
                   "generation_alpha", "recovery_quantile", "n_initial_cases",
                   "test_sensitivity", "data_limit_auto", "data_limit_manual",
-                  "contact_limit_auto_asym", "contact_limit_auto_sym",
-                  "contact_limit_manual_asym", "contact_limit_manual_sym",
+                  "contact_limit_auto_nosym", "contact_limit_auto_sym",
+                  "contact_limit_manual_nosym", "contact_limit_manual_sym",
                   "rollout_delay_gen", "rollout_delay_days",
                   "cap_max_generations", "cap_max_weeks", "cap_cases",
                   "backtrace_distance")
