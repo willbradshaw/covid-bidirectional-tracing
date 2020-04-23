@@ -1,7 +1,7 @@
 library(tidyverse)
 
 # Read in data
-scenario_path <- "output_files/data/reprod_scenario.tsv.gz"
+scenario_path <- "saved_data/reprod_scenario.tsv.gz"
 #scenario_file <- gzfile(scenario_path, "rb")
 scenario_data <- suppressMessages(read_tsv(scenario_path))
 #close(scenario_file)
@@ -27,6 +27,6 @@ g_deep_backtracing <- ggplot(scenario_data,
     panel.spacing.x = unit(0.3, "cm")
   )
 
-ggsave(filename="output_files/figures/test_deep_backtracing.png",
+ggsave(filename="saved_data/test_deep_backtracing.png",
         plot = g_deep_backtracing, device="png", 
         width=22, height=12, units="cm", dpi=320, limitsize=FALSE)

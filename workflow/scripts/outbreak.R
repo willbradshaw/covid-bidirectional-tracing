@@ -66,16 +66,17 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                                      recovery_time, data_limit_auto, data_limit_manual,
                                      contact_limit_auto, contact_limit_manual){
     #' Set secondary immutable keys
-    cases %>% .[, `:=`(has_smartphone = ifelse(rep(index, nrow(.)), p_smartphone_overall,
-                                               ifelse(infector_has_smartphone,
-                                                      p_smartphone_infector_yes,
-                                                      p_smartphone_infector_no)),
+    cases %>% .[, `:=`(has_smartphone = purrr::rbernoulli(nrow(.),
+                                                          ifelse(rep(index, nrow(.)), p_smartphone_overall,
+                                                                 ifelse(infector_has_smartphone,
+                                                                        p_smartphone_infector_yes,
+                                                                        p_smartphone_infector_no))),
                        exposure = ifelse(rep(index, nrow(.)), 0,
                                          generation_time(infector_onset_gen)),
                        n_children = n_children_fn(asym),
                        trace_if_neg = ifelse(asym, FALSE, trace_neg_symptomatic),
                        processed = FALSE)] %>% # (Not actually immutable, but independent of tracing)
-        .[, `:=`(auto_traced = infector_has_smartphone & has_smartphone,
+        .[, `:=`(auto_traced = ifelse(rep(index, nrow(.)), NA, infector_has_smartphone & has_smartphone),
                  onset_gen = exposure + incubation_time(nrow(.)))] %>%
         .[, `:=`(traceable_fwd = ifelse(environmental, FALSE, purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual))),
                  traceable_rev = ifelse(environmental, FALSE, purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual))),
@@ -404,7 +405,9 @@ compute_p_smartphone_infector_no <- function(p_smartphone_overall,
                                            p_smartphone_infector_yes){
     #' Compute the probability that a contact of a non-smartphone-haver
     #' has a smartphone (using Markov chain assumption)
-    (p_smartphone_overall/(1-p_smartphone_overall)) * (1-p_smartphone_infector_yes)
+    if(p_smartphone_infector_yes==1) return(0)
+    return((p_smartphone_overall/(1-p_smartphone_overall)) * 
+               (1-p_smartphone_infector_yes))
 }
 
 #----------------------------------------------------------------------------
