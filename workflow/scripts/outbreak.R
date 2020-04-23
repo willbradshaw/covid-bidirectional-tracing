@@ -101,8 +101,8 @@ initialise_parental_mutables <- function(cases, parents){
                        infector_iso_time = rep_new_cases(parents, "isolation_time"),
                        infector_trace_init_time = rep_new_cases(parents, "trace_init_time")
                        )] %>%
-        .[, `:=`(in_data_threshold_fwd = (exposure + data_limit > infector_trace_init_time),
-                 in_contact_threshold_fwd = (exposure + contact_limit_fwd > ifelse(!infector_asym,
+        .[, `:=`(in_data_threshold_fwd = (exposure + data_limit >= infector_trace_init_time),
+                 in_contact_threshold_fwd = (exposure + contact_limit_fwd >= ifelse(!infector_asym,
                                                                                    infector_onset_true,
                                                                                    infector_trace_init_time))
                  )]
@@ -114,8 +114,8 @@ initialise_identification_time <- function(cases, rollout_delay_gen,
     #' (Depends on ident_sym, rollout delay, symptomatic status)
     n_cases <- nrow(cases)
     cases_identified <- cases$ident_sym &
-        (cases$generation > rollout_delay_gen) &
-        (cases$recovery > rollout_delay_days)
+        (cases$generation >= rollout_delay_gen) &
+        (cases$recovery >= rollout_delay_days)
     cases <- cases[, identification_time := ifelse(!cases_identified, Inf,
                                                    onset_true + delay_time(n_cases))]
     return(cases)
@@ -132,8 +132,8 @@ set_nonparental_mutables <- function(cases){
                  trace_init_time = ifelse(trace_if_neg, quarantine_time,
                                           ifelse(test_positive, quarantine_time + test_delay,
                                                  Inf)))] %>%
-        .[, `:=`(in_data_threshold_rev = (exposure + data_limit > trace_init_time),
-                 in_contact_threshold_rev = (exposure + contact_limit_rev > ifelse(!asym,
+        .[, `:=`(in_data_threshold_rev = (exposure + data_limit >= trace_init_time),
+                 in_contact_threshold_rev = (exposure + contact_limit_rev >= ifelse(!asym,
                                                                                    onset_true,
                                                                                    trace_init_time))
         )]
@@ -259,7 +259,7 @@ trace_forward <- function(cases){
                                           pmin(identification_time, 
                                                infector_trace_init_time + trace_delay_fwd))]
     # Update other mutables based on identification time
-    cases_updated <- set_nonparental_mutables(cases)
+    cases_updated <- set_nonparental_mutables(cases_traced)
     return(cases_updated)
 }
 
