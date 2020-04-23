@@ -7,7 +7,7 @@
 simulation_name: "test"
 
 n_threads_max: 1000 # Max no. of cores to use for simulation
-n_iterations: 10 # Number of runs per scenario
+n_iterations: 100 # Number of runs per scenario
 print_reports: False # Print per-scenario time reports during simulation
 show_progress: False # Use mapping function's show_progress option
 
