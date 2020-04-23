@@ -56,10 +56,8 @@ scenario_parameters:
     test_sensitivity: 1 # P(positive test|true case)
     data_limit_auto: Inf # Number of days contact data for automated tracing is retained
     data_limit_manual: Inf # Number of days contact data for manual tracing is retained
-    contact_limit_auto_nosym: Inf # Number of days prior to *trace initiation* scanned for contacts for a case without symptoms under automated tracing
-    contact_limit_auto_sym: Inf # Number of days prior to *symptom onset* scanned for contacts for a symptomatic case under automated tracing
-    contact_limit_manual_nosym: Inf # Number of days prior to *trace initiation* scanned for contacts for a case without symptoms under manual tracing
-    contact_limit_manual_sym: Inf # Number of days prior to *symptom onset* scanned for contacts for a symptomatic case under manual tracing
+    contact_limit_auto: Inf # Number of days prior to min(trace initiation, symptom onset) scanned for contacts under automated tracing
+    contact_limit_manual: Inf # Number of days prior to min(trace initiation, symptom onset) scanned for contacts under manual tracing
     rollout_delay_gen: [0,1,2,3,4] # Delay in generations between simulation start and initiation of response
     rollout_delay_days: 0 # Delay in days between simulation start and initiation of response
     cap_max_generations: 200 # Maximum number of simulation generations before control fails

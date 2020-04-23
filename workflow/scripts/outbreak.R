@@ -64,8 +64,7 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                                      incubation_time, p_traced_auto, p_traced_manual,
                                      trace_time_auto, trace_time_manual,
                                      recovery_time, data_limit_auto, data_limit_manual,
-                                     contact_limit_auto_nosym, contact_limit_auto_sym,
-                                     contact_limit_manual_nosym, contact_limit_manual_sym){
+                                     contact_limit_auto, contact_limit_manual){
     #' Set secondary immutable keys
     cases %>% .[, `:=`(has_smartphone = ifelse(rep(index, nrow(.)), p_smartphone_overall,
                                                ifelse(infector_has_smartphone,
@@ -87,8 +86,7 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                  data_limit = ifelse(auto_traced, data_limit_auto, data_limit_manual),
                  # Which trace limit to use depends on manual vs auto, on whether symptoms develop before
                  # trace is initiated
-                 contact_limit_sym = ifelse(auto_traced, contact_limit_auto_sym, contact_limit_manual_sym),
-                 contact_limit_nosym = ifelse(auto_traced, contact_limit_auto_nosym, contact_limit_manual_nosym)
+                 contact_limit = ifelse(auto_traced, contact_limit_auto, contact_limit_manual)
         )]
 }
 
@@ -100,9 +98,8 @@ initialise_parental_mutables <- function(cases, parents){
                        infector_trace_init_time = rep_new_cases(parents, "trace_init_time")
                        )] %>%
         .[, `:=`(in_data_threshold_fwd = (exposure + data_limit >= infector_trace_init_time),
-                 in_contact_threshold_fwd = ifelse(infector_onset_true <= infector_trace_init_time,
-                                                   exposure + contact_limit_sym >= infector_onset_true,
-                                                   exposure + contact_limit_nosym >= infector_trace_init_time)
+                 in_contact_threshold_fwd = exposure + contact_limit >= pmin(infector_onset_true,
+                                                                             infector_trace_init_time)
                  )]
 }
 
@@ -131,9 +128,8 @@ set_nonparental_mutables <- function(cases){
                                           ifelse(test_positive, quarantine_time + test_delay,
                                                  Inf)))] %>%
         .[, `:=`(in_data_threshold_rev = (exposure + data_limit >= trace_init_time),
-                 in_contact_threshold_rev = ifelse(onset_true <= trace_init_time,
-                                                   exposure + contact_limit_sym >= onset_true,
-                                                   exposure + contact_limit_nosym >= trace_init_time)
+                 in_contact_threshold_rev = exposure + contact_limit >= pmin(onset_true,
+                                                                             trace_init_time)
                  )]
 }
 
@@ -145,8 +141,7 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
                                p_traced_manual, trace_time_auto,
                                trace_time_manual, recovery_time,
                                data_limit_auto, data_limit_manual,
-                               contact_limit_auto_nosym, contact_limit_auto_sym,
-                               contact_limit_manual_nosym, contact_limit_manual_sym,
+                               contact_limit_auto, contact_limit_manual,
                                rollout_delay_gen,
                                rollout_delay_days, delay_time){
     #' Set up a table of index cases
@@ -165,10 +160,8 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
                                       p_traced_manual = p_traced_manual, trace_time_auto = trace_time_auto,
                                       trace_time_manual = trace_time_manual, recovery_time = recovery_time,
                                       data_limit_auto = data_limit_auto, data_limit_manual = data_limit_manual,
-                                      contact_limit_auto_nosym = contact_limit_auto_nosym,
-                                      contact_limit_auto_sym = contact_limit_auto_sym,
-                                      contact_limit_manual_nosym = contact_limit_manual_nosym,
-                                      contact_limit_manual_sym = contact_limit_manual_sym)
+                                      contact_limit_auto = contact_limit_auto,
+                                      contact_limit_manual = contact_limit_manual)
     # Set identification time (dependent on rollout delay, ident_sym) and parent mutables
     cases <- cases %>% .[, `:=`(infector_ident_time = Inf,
                                 infector_quar_time = Inf,
@@ -189,8 +182,7 @@ create_child_cases <- function(parents, p_asymptomatic, p_blocked_isolation,
                                incubation_time, p_traced_auto,
                                p_traced_manual, trace_time_auto, trace_time_manual,
                                recovery_time, data_limit_auto, data_limit_manual,
-                               contact_limit_auto_nosym, contact_limit_auto_sym,
-                               contact_limit_manual_nosym, contact_limit_manual_sym,
+                               contact_limit_auto, contact_limit_manual,
                                rollout_delay_gen,
                                rollout_delay_days, delay_time, p_environmental){
     #' Generate a table of new child cases from a table of parent cases
@@ -210,10 +202,8 @@ create_child_cases <- function(parents, p_asymptomatic, p_blocked_isolation,
                                       p_traced_manual = p_traced_manual, trace_time_auto = trace_time_auto,
                                       trace_time_manual = trace_time_manual, recovery_time = recovery_time,
                                       data_limit_auto = data_limit_auto, data_limit_manual = data_limit_manual,
-                                      contact_limit_auto_nosym = contact_limit_auto_nosym,
-                                      contact_limit_auto_sym = contact_limit_auto_sym,
-                                      contact_limit_manual_nosym = contact_limit_manual_nosym,
-                                      contact_limit_manual_sym = contact_limit_manual_sym)
+                                      contact_limit_auto = contact_limit_auto,
+                                      contact_limit_manual = contact_limit_manual)
     # Initialise parental mutables
     cases <- initialise_parental_mutables(cases, parents)
     # Initialise identification time
@@ -473,10 +463,8 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                          p_smartphone_link = NULL, trace_neg_symptomatic = NULL,
                          p_traced_auto = NULL, p_traced_manual = NULL,
                          data_limit_auto = NULL, data_limit_manual = NULL,
-                         contact_limit_auto_nosym = NULL,
-                         contact_limit_auto_sym = NULL,
-                         contact_limit_manual_nosym = NULL,
-                         contact_limit_manual_sym = NULL,
+                         contact_limit_auto = NULL,
+                         contact_limit_manual = NULL,
                          rollout_delay_gen = NULL, rollout_delay_days = NULL,
                          p_blocked_isolation = NULL, p_blocked_quarantine = NULL,
                          cap_max_generations = NULL, cap_max_weeks = NULL,
@@ -527,10 +515,8 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                                     recovery_time = recovery_time,
                                     data_limit_auto = data_limit_auto,
                                     data_limit_manual = data_limit_manual,
-                                    contact_limit_auto_nosym = contact_limit_auto_nosym,
-                                    contact_limit_auto_sym = contact_limit_auto_sym,
-                                    contact_limit_manual_nosym = contact_limit_manual_nosym,
-                                    contact_limit_manual_sym = contact_limit_manual_sym,
+                                    contact_limit_auto = contact_limit_auto,
+                                    contact_limit_manual = contact_limit_manual,
                                     rollout_delay_gen = rollout_delay_gen,
                                     rollout_delay_days = rollout_delay_days,
                                     delay_time = delay_time)
@@ -553,10 +539,8 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                                     recovery_time = recovery_time,
                                     data_limit_auto = data_limit_auto,
                                     data_limit_manual = data_limit_manual,
-                                    contact_limit_auto_nosym = contact_limit_auto_nosym,
-                                    contact_limit_auto_sym = contact_limit_auto_sym,
-                                    contact_limit_manual_nosym = contact_limit_manual_nosym,
-                                    contact_limit_manual_sym = contact_limit_manual_sym,
+                                    contact_limit_auto = contact_limit_auto,
+                                    contact_limit_manual = contact_limit_manual,
                                     rollout_delay_gen = rollout_delay_gen,
                                     rollout_delay_days = rollout_delay_days,
                                     delay_time = delay_time,
