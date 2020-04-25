@@ -2,7 +2,8 @@ library(tidyverse)
 
 # Read in data
 scenario_path <- "saved_data/automanual_scenario.tsv.gz"
-scenario_data <- suppressMessages(read_tsv(scenario_path))
+scenario_data <- suppressMessages(read_tsv(scenario_path)) %>%
+  filter(data_limit_auto == 14, p_smartphone_link == 0.8)
 
 # Make plot
 # label_limit <- function(x) {
@@ -21,7 +22,7 @@ g <- ggplot(scenario_data, aes(x=p_traced_manual, y=p_controlled,
                      breaks = seq(0,1,0.2), labels = function(x) round(x*100)) +
   scale_x_continuous(name = "% of unlinked contacts traced", breaks = seq(0,1,0.2),
                      labels = function(x) round(x*100)) +
-  facet_grid(p_smartphone_link~data_limit_auto) +
+  #facet_grid(p_smartphone_link~data_limit_auto) +
   scale_colour_brewer(type = "div", palette = "Dark2", labels=function(x)as.numeric(x)*100,
                       name="% of smartphone-linked\ncontacts traced") +
   scale_fill_brewer(type = "div", palette = "Dark2", labels=function(x)as.numeric(x)*100,
@@ -31,6 +32,6 @@ g <- ggplot(scenario_data, aes(x=p_traced_manual, y=p_controlled,
     panel.spacing.x = unit(0.3, "cm")
   )
 
-# ggsave(filename="saved_data/plot_trace_limits_short.png",
-#        plot = g, device="png",
-#        width=22, height=12, units="cm", dpi=320, limitsize=FALSE)
+ggsave(filename="saved_data/plot_automanual.png",
+       plot = g, device="png",
+       width=22, height=12, units="cm", dpi=320, limitsize=FALSE)

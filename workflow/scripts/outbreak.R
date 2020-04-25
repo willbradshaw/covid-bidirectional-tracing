@@ -20,14 +20,15 @@ set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
     #' Set primary immutable keys for index cases
     data.table(case_id = 1:n_initial_cases,
                asym = purrr::rbernoulli(n_initial_cases, p_asymptomatic),
-               blocked_isolation = NA, # These three only matter for child cases
-               blocked_quarantine = NA,
-               environmental = TRUE, # But this one shouldn't be NA
+               blocked_isolation = FALSE, # Index cases are never blocked
+               blocked_quarantine = FALSE,
+               environmental = TRUE, # Index cases can never be traced to/from their parents (who don't exist)
                sero_test = test_serological,
                test_delay = test_time(n_initial_cases), # TODO: Attach testing to child? (would allow multiple testing during reverse tracing)
                testable = purrr::rbernoulli(n_initial_cases, test_sensitivity), # TODO: See above
                ident_sym = purrr::rbernoulli(n_initial_cases, p_ident_sym),
                generation = 0, infector_id = 0, infector_onset_gen = Inf,
+               infector_exposure = Inf,
                infector_onset_true = Inf, infector_asym = NA, infector_recovery = Inf,
                infector_has_smartphone = NA)
 }
@@ -49,6 +50,7 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_blocked_isol
                               ident_sym = purrr::rbernoulli(n_children_total, p_ident_sym),
                               generation = rep_new_cases(parents, "generation") + 1, # New generation number
                               infector_id = rep_new_cases(parents, "case_id"), # Parent case
+                              infector_exposure = rep_new_cases(parents, "exposure"), # Exposure of parent (not used, but useful to know)
                               infector_onset_gen = rep_new_cases(parents, "onset_gen"), # Symptom onset of parent
                               infector_onset_true = rep_new_cases(parents, "onset_true"), # Symptom onset of parent
                               infector_asym = rep_new_cases(parents, "asym"), # Is parent asymptomatic?
@@ -85,8 +87,6 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                  onset_true = ifelse(asym, Inf, onset_gen),
                  recovery = recovery_time(onset_gen),
                  data_limit = ifelse(auto_traced, data_limit_auto, data_limit_manual),
-                 # Which trace limit to use depends on manual vs auto, on whether symptoms develop before
-                 # trace is initiated
                  contact_limit = ifelse(auto_traced, contact_limit_auto, contact_limit_manual)
         )]
 }
@@ -99,8 +99,8 @@ initialise_parental_mutables <- function(cases, parents){
                        infector_trace_init_time = rep_new_cases(parents, "trace_init_time")
                        )] %>%
         .[, `:=`(in_data_threshold_fwd = (exposure + data_limit >= infector_trace_init_time),
-                 in_contact_threshold_fwd = exposure + contact_limit >= pmin(infector_onset_true,
-                                                                             infector_trace_init_time)
+                 in_contact_threshold_fwd = (exposure + contact_limit >= pmin(infector_onset_true,
+                                                                             infector_trace_init_time))
                  )]
 }
 
@@ -122,12 +122,14 @@ set_nonparental_mutables <- function(cases){
     cases %>% .[, `:=`(quarantine_time = identification_time,
                        test_positive = testable & (identification_time > exposure) &
                            (sero_test | (identification_time < recovery)))] %>%
-        .[, `:=`(isolation_time = ifelse(!asym, quarantine_time,
-                                         ifelse(test_positive, quarantine_time + test_delay,
-                                                Inf)),
-                 trace_init_time = ifelse(trace_if_neg, quarantine_time,
-                                          ifelse(test_positive, quarantine_time + test_delay,
-                                                 Inf)))] %>%
+        .[, `:=`(isolation_time = ifelse(onset_true <= quarantine_time, quarantine_time, # If already showing symptoms, isolate immediately
+                                         ifelse(test_positive, pmin(onset_true, quarantine_time + test_delay), # Else if test positive, isolate on test result (or symptom onset, if that comes first)
+                                                onset_true)), # Otherwise, isolate on symptom onset (which might be never)
+                 trace_init_time = ifelse(trace_if_neg, # If tracing symptomatics regardless of test result, then...
+                                          ifelse(onset_true <= quarantine_time, quarantine_time, # If already showing symptoms, trace immediately
+                                                 ifelse(test_positive, pmin(onset_true, quarantine_time + test_delay), # Otherwise, trace as soon as either symptoms appear or test comes back positive
+                                                        onset_true)), # If test comes back negative, trace on symptom onset
+                                          ifelse(test_positive, quarantine_time + test_delay, Inf)))] %>% # If only tracing symptomatics that test positive, trace on positive test result, otherwise never
         .[, `:=`(in_data_threshold_rev = (exposure + data_limit >= trace_init_time),
                  in_contact_threshold_rev = exposure + contact_limit >= pmin(onset_true,
                                                                              trace_init_time)
@@ -370,29 +372,6 @@ update_parental_mutables <- function(cases){
 }
 
 #----------------------------------------------------------------------------
-# Terminate step
-#----------------------------------------------------------------------------
-
-#' terminate_step <- function(cases, extinct){
-#'     #' End-of-step cleanup for branching process
-#'     if (extinct){
-#'         effective_r0 = 0
-#'         cases_in_generation = 0
-#'     } else {
-#'         latest_generation <- max(cases$generation)
-#'         n_latest <- nrow(cases[generation == latest_generation])
-#'         n_prev <- nrow(cases[generation == latest_generation-1])
-#'         cases_in_generation <- n_latest
-#'         effective_r0 <- n_latest/n_prev
-#'     }
-#'     list_out <- list(cases = cases,
-#'                      effective_r0 = effective_r0,
-#'                      cases_in_generation = cases_in_generation,
-#'                      extinct = extinct)
-#'     return(list_out)
-#' }
-
-#----------------------------------------------------------------------------
 # Other auxiliary functions
 #----------------------------------------------------------------------------
 
@@ -481,7 +460,8 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
     }
     # Compute auxiliary parameters
     r0_symptomatic <- compute_symptomatic_r0(r0_base, r0_asymptomatic, p_asymptomatic)
-    p_smartphone_infector_yes <- p_smartphone_link
+    p_smartphone_infector_yes <- ifelse(p_smartphone_link == Inf, p_smartphone_overall,
+                                        p_smartphone_link)
     p_smartphone_infector_no <- compute_p_smartphone_infector_no(p_smartphone_overall,
                                                              p_smartphone_infector_yes)
     # Prepare fixed-shape distributions
