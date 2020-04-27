@@ -1,7 +1,7 @@
 library(tidyverse)
 
 # Read in data
-scenario_path <- "saved_data/data_limits_scenario.tsv.gz"
+scenario_path <- "saved_data/data_limits_5gen_scenario.tsv.gz"
 scenario_data <- suppressMessages(read_tsv(scenario_path))
 
 # Make plot
@@ -30,6 +30,6 @@ g <- ggplot(scenario_data, aes(x=p_traced_auto, y=p_controlled,
     panel.spacing.x = unit(0.3, "cm")
   )
 
-ggsave(filename="saved_data/plot_data_limits.png",
+ggsave(filename="saved_data/plot_data_limits_5gen.png",
         plot = g, device="png",
         width=22, height=12, units="cm", dpi=320, limitsize=FALSE)
