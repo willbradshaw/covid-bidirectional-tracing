@@ -68,7 +68,7 @@ summarise_by_generation <- function(case_data, group_vars){
   #' Convert a database of case reports into one of per-generation case counts
   group_vars <- c("scenario", "run", group_vars[! group_vars %in% c("scenario", "run")])
   data_out <- case_data %>% as.data.table %>% copy %>%
-    .[, .(cases = .N, extinct=all(processed)), by = c("generation", group_vars)] %>%
+    .[, .(cases = .N, extinct = all(processed)), by = c("generation", group_vars)] %>%
     .[order(generation), cumulative_cases := cumsum(cases), by=group_vars] %>%
     .[order(generation), effective_r0 := lead(cases)/cases, by=group_vars]
   return(data_out)
@@ -81,7 +81,8 @@ summarise_by_run <- function(case_data, group_vars){
   db_gens  <- summarise_by_generation(case_data, group_vars)
   # Get key summary statistics
   case_stats <- case_data %>% as.data.table %>% copy %>%
-    .[, .(last_exposure_days = max(exposure)), by = group_vars] %>%
+    .[, .(last_exposure_days = max(exposure),
+          extinct = all(processed)), by = group_vars] %>%
     .[, `:=`(last_exposure_weeks = last_exposure_days/7,
              last_exposure_days = NULL)]
   gen_stats <- db_gens %>% copy %>%
