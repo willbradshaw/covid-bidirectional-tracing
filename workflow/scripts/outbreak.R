@@ -1,6 +1,4 @@
 #' Core functionality for branching-chain outbreak model
-#'
-#' @author Joel Hellewell (original version), Will Bradshaw (modified version)
 
 #----------------------------------------------------------------------------
 # Create new cases
@@ -16,7 +14,8 @@ rep_new_cases <- function(tab, col){
 
 set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
                                          test_time, test_sensitivity,
-                                         test_serological, p_ident_sym){
+                                         test_serological, p_ident_sym
+                                         ){
     #' Set primary immutable keys for index cases
     data.table(case_id = 1:n_initial_cases,
                asym = purrr::rbernoulli(n_initial_cases, p_asymptomatic),
@@ -30,12 +29,13 @@ set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
                generation = 0, infector_id = 0, infector_onset_gen = Inf,
                infector_exposure = Inf,
                infector_onset_true = Inf, infector_asym = NA, infector_recovery = Inf,
-               infector_has_smartphone = NA)
+               infector_has_smartphone = NA, infector_shares_data = FALSE)
 }
 
 set_primary_immutables_child <- function(parents, p_asymptomatic, p_blocked_isolation,
                                          p_blocked_quarantine, test_time, test_serological,
-                                         test_sensitivity, p_ident_sym, p_environmental){
+                                         test_sensitivity, p_ident_sym, p_environmental
+                                         ){
     #' Set primary immutable keys for index cases
     n_children_total <- sum(parents$n_children)
     case_ids <- max(parents$case_id) + 1:n_children_total
@@ -55,7 +55,8 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_blocked_isol
                               infector_onset_true = rep_new_cases(parents, "onset_true"), # Symptom onset of parent
                               infector_asym = rep_new_cases(parents, "asym"), # Is parent asymptomatic?
                               infector_recovery = rep_new_cases(parents, "recovery"), # Recovery time of parent
-                              infector_has_smartphone = rep_new_cases(parents, "has_smartphone")) # Does parent have smartphone?
+                              infector_has_smartphone = rep_new_cases(parents, "has_smartphone"), # Does parent have smartphone?
+                              infector_shares_data = rep_new_cases(parents, "shares_data")) # Does parent case share their contact data for tracing?
     return(child_cases)
 }
 
@@ -66,7 +67,8 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                                      incubation_time, p_traced_auto, p_traced_manual,
                                      trace_time_auto, trace_time_manual,
                                      recovery_time, data_limit_auto, data_limit_manual,
-                                     contact_limit_auto, contact_limit_manual){
+                                     contact_limit_auto, contact_limit_manual,
+                                     p_data_sharing_auto, p_data_sharing_manual){
     #' Set secondary immutable keys
     cases %>% .[, `:=`(has_smartphone = purrr::rbernoulli(nrow(.),
                                                           ifelse(rep(index, nrow(.)), p_smartphone_overall,
@@ -78,10 +80,12 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                        n_children = n_children_fn(asym),
                        trace_if_neg = ifelse(asym, FALSE, trace_neg_symptomatic),
                        processed = FALSE)] %>% # (Not actually immutable, but independent of tracing)
-        .[, `:=`(auto_traced = ifelse(rep(index, nrow(.)), NA, infector_has_smartphone & has_smartphone),
+        .[, `:=`(auto_traced = ifelse(rep(index, nrow(.)), FALSE, infector_has_smartphone & has_smartphone),
                  onset_gen = exposure + incubation_time(nrow(.)))] %>%
-        .[, `:=`(traceable_fwd = ifelse(environmental, FALSE, purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual))),
-                 traceable_rev = ifelse(environmental, FALSE, purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual))),
+        .[, shares_data := purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_data_sharing_auto,
+                                                            p_data_sharing_manual))] %>%
+        .[, `:=`(traceable_fwd = ifelse((environmental | (!infector_shares_data)), FALSE, purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual))),
+                 traceable_rev = ifelse((environmental | (!shares_data)), FALSE, purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual))),
                  trace_delay_fwd = ifelse(auto_traced, trace_time_auto(nrow(.)), trace_time_manual(nrow(.))),
                  trace_delay_rev = ifelse(auto_traced, trace_time_auto(nrow(.)), trace_time_manual(nrow(.))),
                  onset_true = ifelse(asym, Inf, onset_gen),
@@ -145,7 +149,8 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
                                trace_time_manual, recovery_time,
                                data_limit_auto, data_limit_manual,
                                contact_limit_auto, contact_limit_manual,
-                               rollout_delay_gen,
+                               rollout_delay_gen, p_data_sharing_auto,
+                               p_data_sharing_manual,
                                rollout_delay_days, delay_time){
     #' Set up a table of index cases
     # Set immutable keys
@@ -164,7 +169,9 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
                                       trace_time_manual = trace_time_manual, recovery_time = recovery_time,
                                       data_limit_auto = data_limit_auto, data_limit_manual = data_limit_manual,
                                       contact_limit_auto = contact_limit_auto,
-                                      contact_limit_manual = contact_limit_manual)
+                                      contact_limit_manual = contact_limit_manual,
+                                      p_data_sharing_auto = p_data_sharing_auto,
+                                      p_data_sharing_manual = p_data_sharing_manual)
     # Set identification time (dependent on rollout delay, ident_sym) and parent mutables
     cases <- cases %>% .[, `:=`(infector_ident_time = Inf,
                                 infector_quar_time = Inf,
@@ -186,7 +193,8 @@ create_child_cases <- function(parents, p_asymptomatic, p_blocked_isolation,
                                p_traced_manual, trace_time_auto, trace_time_manual,
                                recovery_time, data_limit_auto, data_limit_manual,
                                contact_limit_auto, contact_limit_manual,
-                               rollout_delay_gen,
+                               rollout_delay_gen, p_data_sharing_auto,
+                               p_data_sharing_manual,
                                rollout_delay_days, delay_time, p_environmental){
     #' Generate a table of new child cases from a table of parent cases
     # Set immutable keys
@@ -206,6 +214,8 @@ create_child_cases <- function(parents, p_asymptomatic, p_blocked_isolation,
                                       trace_time_manual = trace_time_manual, recovery_time = recovery_time,
                                       data_limit_auto = data_limit_auto, data_limit_manual = data_limit_manual,
                                       contact_limit_auto = contact_limit_auto,
+                                      p_data_sharing_auto = p_data_sharing_auto,
+                                      p_data_sharing_manual = p_data_sharing_manual,
                                       contact_limit_manual = contact_limit_manual)
     # Initialise parental mutables
     cases <- initialise_parental_mutables(cases, parents)
@@ -434,7 +444,7 @@ run_outbreak <- function(index_case_fn = NULL, child_case_fn = NULL,
 }
 
 scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
-                         r0_asymptomatic = NULL, p_asymptomatic = NULL,
+                         rel_r0_asymptomatic = NULL, p_asymptomatic = NULL,
                          generation_omega = NULL, generation_alpha = NULL,
                          recovery_quantile = NULL, incubation_time = NULL,
                          test_time = NULL, trace_time_auto = NULL,
@@ -451,7 +461,9 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                          p_blocked_isolation = NULL, p_blocked_quarantine = NULL,
                          cap_max_generations = NULL, cap_max_weeks = NULL,
                          cap_cases = NULL, backtrace_distance = NULL,
-                         p_environmental = NULL, report = NULL
+                         p_environmental = NULL, report = NULL,
+                         p_data_sharing_auto = NULL,
+                         p_data_sharing_manual = NULL
                          ){
     #' Run a specified number of outbreaks with identical parameters
     if (!is.null(report) & !is.na(report)){
@@ -459,11 +471,14 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
         cat(report, ": ", date(), sep="")
     }
     # Compute auxiliary parameters
+    r0_asymptomatic <- rel_r0_asymptomatic * r0_base
     r0_symptomatic <- compute_symptomatic_r0(r0_base, r0_asymptomatic, p_asymptomatic)
-    p_smartphone_infector_yes <- ifelse(p_smartphone_link == Inf, p_smartphone_overall,
+    p_smartphone_infector_yes <- ifelse(p_smartphone_link < 0, p_smartphone_overall,
                                         p_smartphone_link)
     p_smartphone_infector_no <- compute_p_smartphone_infector_no(p_smartphone_overall,
                                                              p_smartphone_infector_yes)
+    p_blocked_quarantine <- ifelse(p_blocked_quarantine < 0, p_blocked_isolation,
+                                   p_blocked_quarantine)
     # Prepare fixed-shape distributions
     n_children_fn <- function(asym) rnbinom(n=length(asym), size=dispersion,
                                             mu=ifelse(asym, r0_asymptomatic,
@@ -502,7 +517,10 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                                     contact_limit_manual = contact_limit_manual,
                                     rollout_delay_gen = rollout_delay_gen,
                                     rollout_delay_days = rollout_delay_days,
-                                    delay_time = delay_time)
+                                    delay_time = delay_time,
+                                    p_data_sharing_auto = p_data_sharing_auto,
+                                    p_data_sharing_manual = p_data_sharing_manual
+                                    )
     child_case_fn <- purrr::partial(create_child_cases,
                                     p_asymptomatic = p_asymptomatic,
                                     p_blocked_isolation = p_blocked_isolation,
@@ -527,7 +545,10 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                                     rollout_delay_gen = rollout_delay_gen,
                                     rollout_delay_days = rollout_delay_days,
                                     delay_time = delay_time,
-                                    p_environmental = p_environmental)        
+                                    p_environmental = p_environmental,
+                                    p_data_sharing_auto = p_data_sharing_auto,
+                                    p_data_sharing_manual = p_data_sharing_manual
+                                    )        
     # Execute runs
     iter_out <- purrr::map(.x = 1:n_iterations,
                            ~ run_outbreak(index_case_fn = index_case_fn,

@@ -9,7 +9,7 @@ map_scenario <- function(scenario, n_iterations, report){
     #' Initiate a scenario simulation from a 1-row scenario table
     sim_out <- scenario_sim(n_iterations = n_iterations,
         dispersion = scenario$dispersion, r0_base = scenario$r0_base,
-        r0_asymptomatic = scenario$r0_asymptomatic, p_asymptomatic = scenario$p_asymptomatic,
+        rel_r0_asymptomatic = scenario$r0_asymptomatic, p_asymptomatic = scenario$p_asymptomatic,
         generation_omega = scenario$generation_omega, generation_alpha = scenario$generation_alpha,
         recovery_quantile = scenario$recovery_quantile, incubation_time = scenario$incubation_time,
         test_time = scenario$test_time, trace_time_auto = scenario$trace_time_auto,
@@ -33,6 +33,8 @@ map_scenario <- function(scenario, n_iterations, report){
         cap_max_weeks = scenario$cap_max_weeks, cap_cases = scenario$cap_cases,
         backtrace_distance = scenario$backtrace_distance,
         p_environmental = scenario$p_environmental,
+        p_data_sharing_auto = scenario$p_data_sharing_auto,
+        p_data_sharing_manual = scenario$p_data_sharing_manual,
         report = ifelse(report, scenario$report, NA))
     return(sim_out)
 }
