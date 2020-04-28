@@ -14,26 +14,27 @@ rep_new_cases <- function(tab, col){
 
 set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
                                          test_time, test_sensitivity,
-                                         test_serological, p_ident_sym
+                                         test_serological, p_ident_sym,
+                                         p_compliance_isolation
                                          ){
     #' Set primary immutable keys for index cases
     data.table(case_id = 1:n_initial_cases,
                asym = purrr::rbernoulli(n_initial_cases, p_asymptomatic),
-               blocked_isolation = FALSE, # Index cases are never blocked
-               blocked_quarantine = FALSE,
                environmental = TRUE, # Index cases can never be traced to/from their parents (who don't exist)
                sero_test = test_serological,
                test_delay = test_time(n_initial_cases), # TODO: Attach testing to child? (would allow multiple testing during reverse tracing)
                testable = purrr::rbernoulli(n_initial_cases, test_sensitivity), # TODO: See above
                ident_sym = purrr::rbernoulli(n_initial_cases, p_ident_sym),
+               isolates = purrr::rbernoulli(n_initial_cases, p_compliance_isolation),
                generation = 0, infector_id = 0, infector_onset_gen = Inf,
                infector_exposure = Inf,
                infector_onset_true = Inf, infector_asym = NA, infector_recovery = Inf,
-               infector_has_smartphone = NA, infector_shares_data = FALSE)
+               infector_has_smartphone = NA, infector_shares_data = FALSE,
+               infector_isolates = FALSE)
 }
 
-set_primary_immutables_child <- function(parents, p_asymptomatic, p_blocked_isolation,
-                                         p_blocked_quarantine, test_time, test_serological,
+set_primary_immutables_child <- function(parents, p_asymptomatic, p_compliance_isolation,
+                                         test_time, test_serological,
                                          test_sensitivity, p_ident_sym, p_environmental
                                          ){
     #' Set primary immutable keys for index cases
@@ -41,13 +42,12 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_blocked_isol
     case_ids <- max(parents$case_id) + 1:n_children_total
     child_cases <- data.table(case_id = case_ids,
                               asym = purrr::rbernoulli(n_children_total, p_asymptomatic),
-                              blocked_isolation = purrr::rbernoulli(n_children_total, p_blocked_isolation),
-                              blocked_quarantine = purrr::rbernoulli(n_children_total, p_blocked_quarantine),
                               environmental = purrr::rbernoulli(n_children_total, p_environmental),
                               test_delay = test_time(n_children_total),
                               sero_test = test_serological,
                               testable = purrr::rbernoulli(n_children_total, test_sensitivity),
                               ident_sym = purrr::rbernoulli(n_children_total, p_ident_sym),
+                              isolates = purrr::rbernoulli(n_children_total, p_compliance_isolation),
                               generation = rep_new_cases(parents, "generation") + 1, # New generation number
                               infector_id = rep_new_cases(parents, "case_id"), # Parent case
                               infector_exposure = rep_new_cases(parents, "exposure"), # Exposure of parent (not used, but useful to know)
@@ -56,7 +56,8 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_blocked_isol
                               infector_asym = rep_new_cases(parents, "asym"), # Is parent asymptomatic?
                               infector_recovery = rep_new_cases(parents, "recovery"), # Recovery time of parent
                               infector_has_smartphone = rep_new_cases(parents, "has_smartphone"), # Does parent have smartphone?
-                              infector_shares_data = rep_new_cases(parents, "shares_data")) # Does parent case share their contact data for tracing?
+                              infector_shares_data = rep_new_cases(parents, "shares_data"), # Does parent case share their contact data for tracing?
+                              infector_isolates = rep_new_cases(parents, "isolates")) # Does parent comply with isolation?
     return(child_cases)
 }
 
@@ -150,7 +151,7 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
                                data_limit_auto, data_limit_manual,
                                contact_limit_auto, contact_limit_manual,
                                rollout_delay_gen, p_data_sharing_auto,
-                               p_data_sharing_manual,
+                               p_data_sharing_manual, p_compliance_isolation,
                                rollout_delay_days, delay_time){
     #' Set up a table of index cases
     # Set immutable keys
@@ -159,7 +160,8 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
                                           test_time = test_time,
                                           test_sensitivity = test_sensitivity,
                                           test_serological = test_serological,
-                                          p_ident_sym = p_ident_sym)
+                                          p_ident_sym = p_ident_sym,
+                                          p_compliance_isolation = p_compliance_isolation)
     cases <- set_secondary_immutables(cases = cases, index = TRUE, p_smartphone_overall = p_smartphone_overall,
                                       p_smartphone_infector_yes = NA, p_smartphone_infector_no = NA,
                                       generation_time = generation_time, n_children_fn = n_children_fn,
@@ -185,8 +187,8 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
     return(cases)
 }
 
-create_child_cases <- function(parents, p_asymptomatic, p_blocked_isolation,
-                               p_blocked_quarantine, test_time, test_sensitivity, test_serological,
+create_child_cases <- function(parents, p_asymptomatic, p_compliance_isolation,
+                               test_time, test_sensitivity, test_serological,
                                p_ident_sym, p_smartphone_infector_yes, p_smartphone_infector_no,
                                generation_time, n_children_fn, trace_neg_symptomatic,
                                incubation_time, p_traced_auto,
@@ -199,8 +201,7 @@ create_child_cases <- function(parents, p_asymptomatic, p_blocked_isolation,
     #' Generate a table of new child cases from a table of parent cases
     # Set immutable keys
     cases <- set_primary_immutables_child(parents = parents, p_asymptomatic = p_asymptomatic,
-                                          p_blocked_isolation = p_blocked_isolation,
-                                          p_blocked_quarantine = p_blocked_quarantine,
+                                          p_compliance_isolation = p_compliance_isolation,
                                           test_time = test_time, test_serological = test_serological,
                                           test_sensitivity = test_sensitivity, p_ident_sym = p_ident_sym,
                                           p_environmental = p_environmental)
@@ -237,8 +238,9 @@ filter_new_cases <- function(cases){
     exposure_in_quarantine <- (cases$exposure > cases$infector_quar_time) &
         !exposure_in_isolation
     # Determine which such cases are blocked
-    blocked_by_isolation <- exposure_in_isolation & cases$blocked_isolation
-    blocked_by_quarantine <- exposure_in_quarantine & cases$blocked_quarantine
+    blocked_by_isolation <- exposure_in_isolation & cases$infector_isolates
+    blocked_by_quarantine <- exposure_in_quarantine & cases$infector_isolates
+    # TODO: Distinguish compliance with isolation from compliance with quarantine?
     # Return non-blocked cases
     return(cases[(!blocked_by_isolation) & (!blocked_by_quarantine)])
 }
@@ -458,7 +460,7 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                          contact_limit_auto = NULL,
                          contact_limit_manual = NULL,
                          rollout_delay_gen = NULL, rollout_delay_days = NULL,
-                         p_blocked_isolation = NULL, p_blocked_quarantine = NULL,
+                         p_compliance_isolation = NULL,
                          cap_max_generations = NULL, cap_max_weeks = NULL,
                          cap_cases = NULL, backtrace_distance = NULL,
                          p_environmental = NULL, report = NULL,
@@ -477,8 +479,6 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                                         p_smartphone_link)
     p_smartphone_infector_no <- compute_p_smartphone_infector_no(p_smartphone_overall,
                                                              p_smartphone_infector_yes)
-    p_blocked_quarantine <- ifelse(p_blocked_quarantine < 0, p_blocked_isolation,
-                                   p_blocked_quarantine)
     # Prepare fixed-shape distributions
     n_children_fn <- function(asym) rnbinom(n=length(asym), size=dispersion,
                                             mu=ifelse(asym, r0_asymptomatic,
@@ -519,12 +519,12 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                                     rollout_delay_days = rollout_delay_days,
                                     delay_time = delay_time,
                                     p_data_sharing_auto = p_data_sharing_auto,
-                                    p_data_sharing_manual = p_data_sharing_manual
+                                    p_data_sharing_manual = p_data_sharing_manual,
+                                    p_compliance_isolation = p_compliance_isolation
                                     )
     child_case_fn <- purrr::partial(create_child_cases,
                                     p_asymptomatic = p_asymptomatic,
-                                    p_blocked_isolation = p_blocked_isolation,
-                                    p_blocked_quarantine = p_blocked_quarantine,
+                                    p_compliance_isolation = p_compliance_isolation,
                                     test_time = test_time, test_sensitivity = test_sensitivity,
                                     test_serological = test_serological, p_ident_sym = p_ident_sym,
                                     p_smartphone_infector_yes = p_smartphone_infector_yes,

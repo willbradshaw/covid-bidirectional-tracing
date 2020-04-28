@@ -10,7 +10,7 @@ source("workflow/scripts/outbreak.R")
 
 # Process scenario parameters for infinities
 sp <- snakemake@params[["scenario_parameters"]]
-numeric_keys <- c("r0_base", "r0_asymptomatic", "dispersion", "generation_omega",
+numeric_keys <- c("r0_base", "rel_r0_asymptomatic", "dispersion", "generation_omega",
                   "generation_alpha", "recovery_quantile", "n_initial_cases",
                   "test_sensitivity", "data_limit_auto", "data_limit_manual",
                   "contact_limit_auto", "contact_limit_manual",

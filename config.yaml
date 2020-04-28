@@ -42,8 +42,7 @@ scenario_parameters:
     p_traced_auto: 1 # Success rate of automated contact tracing (out of possible traces)
     p_traced_manual: 1 # Success rate of manual contact tracing (out of possible traces that can't be traced automatically)
     p_environmental: 0 # Proportion of contacts that are environmental (here = untraceable)
-    p_blocked_isolation: 1 # Proportion of transmissions blocked by isolation of parent case
-    p_blocked_quarantine: -1 # Proportion of transmissions blocked by quarantine of parent case (-1 to disable and just use p_blocked_isolation)
+    p_compliance_isolation: 1 # Proportion of cases who comply with isolation/quarantine
     p_data_sharing_auto: 1 # Proportion of individuals who share/upload contact data for onward automated tracing
     p_data_sharing_manual: 1 # Proportion of individuals who share/upload contact data for onward manual tracing
 
