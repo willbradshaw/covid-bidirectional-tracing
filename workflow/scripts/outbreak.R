@@ -470,7 +470,7 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
     #' Run a specified number of outbreaks with identical parameters
     if (!is.null(report) & !is.na(report)){
         start <- proc.time()
-        cat(report, ": ", date(), sep="")
+        cat("Scenario ", report, " beginning at: ", date(), "\n", sep="")
     }
     # Compute auxiliary parameters
     r0_asymptomatic <- rel_r0_asymptomatic * r0_base
@@ -548,20 +548,22 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                                     p_environmental = p_environmental,
                                     p_data_sharing_auto = p_data_sharing_auto,
                                     p_data_sharing_manual = p_data_sharing_manual
-                                    )        
+                                    )
     # Execute runs
     iter_out <- purrr::map(.x = 1:n_iterations,
                            ~ run_outbreak(index_case_fn = index_case_fn,
-                                          child_case_fn = child_case_fn, 
+                                          child_case_fn = child_case_fn,
                                           cap_max_generations = cap_max_generations,
                                           cap_max_weeks = cap_max_weeks,
                                           cap_cases = cap_cases,
                                           backtrace_distance = backtrace_distance))
+    gc(verbose = FALSE)
     # Label and concatenate
     results_raw <- lapply(1:n_iterations, function(n) iter_out[[n]][, run := n]) %>%
         data.table::rbindlist(fill = TRUE)
     if (!is.null(report) & !is.na(report)){
-        cat(" to ", date(), " (", timetaken(start), ")\n", sep="")
+        cat("Scenario ", report, " concluding at: ", date(), " (", timetaken(start), ")\n", sep="")
+        cat("Final case count across all runs (scenario ", report, "): ", nrow(results_raw), "\n", sep="")
     }
     return(results_raw) # NB: Depending on memory footprint, might need to summarise these here
 }
