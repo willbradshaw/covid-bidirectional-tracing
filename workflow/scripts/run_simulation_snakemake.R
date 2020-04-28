@@ -16,7 +16,12 @@ numeric_keys <- c("r0_base", "rel_r0_asymptomatic", "dispersion", "generation_om
                   "contact_limit_auto", "contact_limit_manual",
                   "rollout_delay_gen", "rollout_delay_days",
                   "cap_max_generations", "cap_max_weeks", "cap_cases",
-                  "backtrace_distance")
+                  "backtrace_distance", "p_asymptomatic", "p_ident_sym",
+                  "p_smartphone_overall", "p_smartphone_link",
+                  "p_traced_auto", "p_traced_manual",
+                  "p_environmental", "p_compliance_isolation",
+                  "p_data_sharing_auto", "p_data_sharing_manual",
+                  "test_sensitivity")
 for (k in numeric_keys){
     sp[[k]] <- as.numeric(unlist(sp[[k]]))
 }
@@ -32,7 +37,7 @@ simulate_process(scenario_parameters = sp,
                  write_weekly = snakemake@params[["output_parameters"]][["write_weekly"]],
                  write_generational = snakemake@params[["output_parameters"]][["write_gen"]],
                  write_run = snakemake@params[["output_parameters"]][["write_run"]],
-                 write_scenario = TRUE, compress_output = TRUE,
+                 compress_output = TRUE,
                  log_path = snakemake@log[[1]],
                  ci_width = snakemake@params[["ci_parameters"]][["ci_width"]],
                  alpha_prior = snakemake@params[["ci_parameters"]][["alpha_prior"]],

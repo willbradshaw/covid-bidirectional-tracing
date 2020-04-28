@@ -465,12 +465,13 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                          cap_cases = NULL, backtrace_distance = NULL,
                          p_environmental = NULL, report = NULL,
                          p_data_sharing_auto = NULL,
-                         p_data_sharing_manual = NULL
+                         p_data_sharing_manual = NULL,
+                         scenario = NULL
                          ){
     #' Run a specified number of outbreaks with identical parameters
-    if (!is.null(report) & !is.na(report)){
+    if (report){
         start <- proc.time()
-        cat("Scenario ", report, " beginning at: ", date(), "\n", sep="")
+        cat("Scenario ", scenario, " beginning at: ", date(), "\n", sep="")
     }
     # Compute auxiliary parameters
     r0_asymptomatic <- rel_r0_asymptomatic * r0_base
@@ -560,10 +561,10 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
     gc(verbose = FALSE)
     # Label and concatenate
     results_raw <- lapply(1:n_iterations, function(n) iter_out[[n]][, run := n]) %>%
-        data.table::rbindlist(fill = TRUE)
-    if (!is.null(report) & !is.na(report)){
-        cat("Scenario ", report, " concluding at: ", date(), " (", timetaken(start), ")\n", sep="")
-        cat("Final case count across all runs (scenario ", report, "): ", nrow(results_raw), "\n", sep="")
+        data.table::rbindlist(fill = TRUE) %>% .[, scenario := scenario]
+    if (report){
+        cat("Scenario ", scenario, " concluding at: ", date(), " (", timetaken(start), ")\n", sep="")
+        cat("Final case count across all runs (scenario ", scenario, "): ", nrow(results_raw), "\n", sep="")
     }
-    return(results_raw) # NB: Depending on memory footprint, might need to summarise these here
+    return(results_raw)
 }

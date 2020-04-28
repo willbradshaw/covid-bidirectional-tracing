@@ -1,56 +1,4 @@
 #' Wrapper code for branching process model
-#' @author Joel Hellewell (original version), Will Bradshaw (modified version)
-
-#------------------------------------------------------------------------------
-# Run parameter sweep
-#------------------------------------------------------------------------------
-
-map_scenario <- function(scenario, n_iterations, report){
-    #' Initiate a scenario simulation from a 1-row scenario table
-    sim_out <- scenario_sim(n_iterations = n_iterations,
-        dispersion = scenario$dispersion, r0_base = scenario$r0_base,
-        rel_r0_asymptomatic = scenario$rel_r0_asymptomatic,
-        p_asymptomatic = scenario$p_asymptomatic,
-        generation_omega = scenario$generation_omega, generation_alpha = scenario$generation_alpha,
-        recovery_quantile = scenario$recovery_quantile, incubation_time = scenario$incubation_time,
-        test_time = scenario$test_time, trace_time_auto = scenario$trace_time_auto,
-        trace_time_manual = scenario$trace_time_manual, delay_time = scenario$delay_time,
-        n_initial_cases = scenario$n_initial_cases, test_sensitivity = scenario$test_sensitivity,
-        test_serological = scenario$test_serological, p_ident_sym = scenario$p_ident_sym,
-        p_smartphone_overall = scenario$p_smartphone_overall,
-        p_smartphone_link = scenario$p_smartphone_link,
-        trace_neg_symptomatic = scenario$trace_neg_symptomatic,
-        p_traced_auto = scenario$p_traced_auto,
-        p_traced_manual = scenario$p_traced_manual,
-        data_limit_auto = scenario$data_limit_auto,
-        data_limit_manual = scenario$data_limit_manual,
-        contact_limit_auto = scenario$contact_limit_auto,
-        contact_limit_manual = scenario$contact_limit_manual,
-        rollout_delay_gen = scenario$rollout_delay_gen,
-        rollout_delay_days = scenario$rollout_delay_days,
-        p_compliance_isolation = scenario$p_compliance_isolation,
-        cap_max_generations = scenario$cap_max_generations,
-        cap_max_weeks = scenario$cap_max_weeks, cap_cases = scenario$cap_cases,
-        backtrace_distance = scenario$backtrace_distance,
-        p_environmental = scenario$p_environmental,
-        p_data_sharing_auto = scenario$p_data_sharing_auto,
-        p_data_sharing_manual = scenario$p_data_sharing_manual,
-        report = ifelse(report, scenario$report, NA))
-    return(sim_out)
-}
-
-parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
-                            threads = NULL,
-                            show_progress = NULL, report = FALSE){
-    #' Run one set of simulations for each scenario in a table of scenarios
-    # Nest scenarios into sub-tables
-    scenario_data <- scenarios %>% mutate(report = scenario)
-    sim_fn <- function(n) map_scenario(scenario_data[n,], n_iterations, report)
-    sim_data <- mclapply(1:nrow(scenario_data), sim_fn, mc.cores = threads)
-    scenario_sims <- scenario_data %>% mutate(sims = sim_data) %>%
-        tidyr::unnest("sims")
-    return(scenario_sims)
-}
 
 #------------------------------------------------------------------------------
 # Summarise data
@@ -121,10 +69,6 @@ summarise_by_scenario <- function(case_data, group_vars, ci_width = 0.95,
   return(scenario_stats)
 }
 
-#------------------------------------------------------------------------------
-# Write output
-#------------------------------------------------------------------------------
-
 write_dfile <- function(data, path_prefix, compress = TRUE){
   if (!compress) f <- file else f <- gzfile
   if (!compress) ext <- ".tsv" else ext <- ".tsv.gz"
@@ -134,32 +78,94 @@ write_dfile <- function(data, path_prefix, compress = TRUE){
   close(dfile)
 }
 
-write_data <- function(case_data, path_prefix, write_raw = FALSE,
-                       write_weekly = FALSE, write_generational = FALSE,
-                       write_run = FALSE, write_scenario = FALSE,
-                       compress = TRUE, group_vars = NULL, ci_width = NULL,
-                       alpha_prior = NULL, beta_prior = NULL){
-  #' Write simulated case data and summaries to file
-  if (write_raw){
-    write_dfile(case_data, paste0(path_prefix, "_raw"), compress)
-  }
-  if (write_weekly){
-    week_data <- summarise_by_week(case_data, group_vars)
-    write_dfile(week_data, paste0(path_prefix, "_weekly"), compress)
-  }
-  if (write_generational){
-    gen_data <- summarise_by_generation(case_data, group_vars)
-    write_dfile(gen_data, paste0(path_prefix, "_gen"), compress)
-  }
-  if (write_run){
-    run_data <- summarise_by_run(case_data, group_vars)
-    write_dfile(run_data, paste0(path_prefix, "_run"), compress)
-  }
-  if (write_scenario){
-    scenario_data <- summarise_by_scenario(case_data, group_vars, ci_width,
+#------------------------------------------------------------------------------
+# Run parameter sweep
+#------------------------------------------------------------------------------
+
+map_scenario <- function(scenario, n_iterations, report,
+                         write_raw, write_weekly,
+                         write_generational, write_run,
+                         path_prefix, compress,
+                         ci_width, alpha_prior, beta_prior
+                         ){
+    #' Initiate a scenario simulation from a 1-row scenario table
+    
+    sim_out <- scenario_sim(n_iterations = n_iterations,
+        dispersion = scenario$dispersion, r0_base = scenario$r0_base,
+        rel_r0_asymptomatic = scenario$rel_r0_asymptomatic,
+        p_asymptomatic = scenario$p_asymptomatic,
+        generation_omega = scenario$generation_omega, generation_alpha = scenario$generation_alpha,
+        recovery_quantile = scenario$recovery_quantile, incubation_time = scenario$incubation_time,
+        test_time = scenario$test_time, trace_time_auto = scenario$trace_time_auto,
+        trace_time_manual = scenario$trace_time_manual, delay_time = scenario$delay_time,
+        n_initial_cases = scenario$n_initial_cases, test_sensitivity = scenario$test_sensitivity,
+        test_serological = scenario$test_serological, p_ident_sym = scenario$p_ident_sym,
+        p_smartphone_overall = scenario$p_smartphone_overall,
+        p_smartphone_link = scenario$p_smartphone_link,
+        trace_neg_symptomatic = scenario$trace_neg_symptomatic,
+        p_traced_auto = scenario$p_traced_auto,
+        p_traced_manual = scenario$p_traced_manual,
+        data_limit_auto = scenario$data_limit_auto,
+        data_limit_manual = scenario$data_limit_manual,
+        contact_limit_auto = scenario$contact_limit_auto,
+        contact_limit_manual = scenario$contact_limit_manual,
+        rollout_delay_gen = scenario$rollout_delay_gen,
+        rollout_delay_days = scenario$rollout_delay_days,
+        p_compliance_isolation = scenario$p_compliance_isolation,
+        cap_max_generations = scenario$cap_max_generations,
+        cap_max_weeks = scenario$cap_max_weeks, cap_cases = scenario$cap_cases,
+        backtrace_distance = scenario$backtrace_distance,
+        p_environmental = scenario$p_environmental,
+        p_data_sharing_auto = scenario$p_data_sharing_auto,
+        p_data_sharing_manual = scenario$p_data_sharing_manual,
+        scenario = scenario$scenario, report = report)
+    # Write and summarise
+    case_data <- as.data.table(scenario)[sim_out, on="scenario"]
+    path_prefix = paste0(path_prefix, "_", scenario$scenario)
+    if (write_raw){
+      write_dfile(case_data, paste0(path_prefix, "_raw"), compress)
+    }
+    if (write_weekly){
+      week_data <- summarise_by_week(case_data, colnames(scenario))
+      write_dfile(week_data, paste0(path_prefix, "_weekly"), compress)
+    }
+    if (write_generational){
+      gen_data <- summarise_by_generation(case_data, colnames(scenario))
+      write_dfile(gen_data, paste0(path_prefix, "_gen"), compress)
+    }
+    if (write_run){
+      run_data <- summarise_by_run(case_data, colnames(scenario))
+      write_dfile(run_data, paste0(path_prefix, "_run"), compress)
+    }
+    scenario_data <- summarise_by_scenario(case_data, colnames(scenario), ci_width,
                                            alpha_prior, beta_prior)
-    write_dfile(scenario_data, paste0(path_prefix, "_scenario"), compress)
-  }
+    gc(verbose=FALSE, full=TRUE)
+    return(scenario_data)
+}
+
+parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
+                            threads = NULL, show_progress = NULL, report = NULL,
+                            write_raw = NULL, write_weekly = NULL,
+                            write_generational = NULL, write_run = NULL,
+                            path_prefix = NULL, compress = NULL, ci_width = NULL,
+                            alpha_prior = NULL, beta_prior = NULL){
+    #' Run one set of simulations for each scenario in a table of scenarios
+    # Nest scenarios into sub-tables
+    sim_fn <- function(n) map_scenario(scenario = scenarios[n,],
+                                       n_iterations = n_iterations,
+                                       report = report,
+                                       write_raw = write_raw,
+                                       write_weekly = write_weekly,
+                                       write_generational = write_generational,
+                                       write_run = write_run,
+                                       path_prefix = path_prefix,
+                                       compress = compress,
+                                       ci_width = ci_width,
+                                       alpha_prior = alpha_prior,
+                                       beta_prior = beta_prior)
+    sim_data <- mclapply(1:nrow(scenarios), sim_fn, mc.cores = threads)
+    print(sim_data)
+    return(sim_data %>% rbindlist)
 }
 
 #------------------------------------------------------------------------------
@@ -171,7 +177,7 @@ simulate_process <- function(scenario_parameters = NULL, n_iterations = NULL,
                              show_progress = NULL, path_prefix = NULL,
                              write_raw = NULL, write_weekly = NULL,
                              write_generational = NULL, write_run = NULL,
-                             write_scenario = NULL, compress_output = NULL,
+                             compress_output = NULL,
                              log_path = NULL, ci_width = NULL,
                              alpha_prior = NULL, beta_prior = NULL){
   #' Generate a table of scenarios, run parameter sweep, and write output
@@ -193,15 +199,17 @@ simulate_process <- function(scenario_parameters = NULL, n_iterations = NULL,
   # 2. Run parameter sweep
   sweep <- parameter_sweep(scenarios = scenarios, n_iterations = n_iterations,
                            report = report, threads = threads,
-                           show_progress = show_progress)
-  # 3. Write data and summaries
-  write_data(case_data = sweep, path_prefix = path_prefix,
-             write_raw = write_raw, write_weekly = write_weekly,
-             write_generational = write_generational,
-             write_run = write_run, write_scenario = write_scenario,
-             compress = compress_output, group_vars = colnames(scenarios),
-             ci_width = ci_width, alpha_prior = alpha_prior,
-             beta_prior = beta_prior)
+                           show_progress = show_progress,
+                           path_prefix = path_prefix,
+                           write_raw = write_raw, write_weekly = write_weekly,
+                           write_generational = write_generational,
+                           write_run = write_run,
+                           compress = compress_output,
+                           ci_width = ci_width,
+                           alpha_prior = alpha_prior,
+                           beta_prior = beta_prior)
+  # 3. Write summarised scenario data
+  write_dfile(sweep, paste0(path_prefix, "_scenario"), compress_output)
   if (!is.null(log_path) && !is.na(log_path)){
     cat("End of simulation: ", date(), " (", timetaken(start), ")\n", sep="")
     sink()
