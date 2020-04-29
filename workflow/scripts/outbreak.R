@@ -442,6 +442,7 @@ run_outbreak <- function(index_case_fn = NULL, child_case_fn = NULL,
                                    child_case_fn = child_case_fn,
                                    backtrace_distance = backtrace_distance)
     }
+    gc(verbose=FALSE, full=TRUE)
     return(case_data)
 }
 
@@ -558,13 +559,14 @@ scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
                                           cap_max_weeks = cap_max_weeks,
                                           cap_cases = cap_cases,
                                           backtrace_distance = backtrace_distance))
-    gc(verbose = FALSE)
+    gc(verbose=FALSE, full=TRUE)
     # Label and concatenate
     results_raw <- lapply(1:n_iterations, function(n) iter_out[[n]][, run := n]) %>%
         data.table::rbindlist(fill = TRUE) %>% .[, scenario := scenario]
+    gc(verbose=FALSE, full=TRUE)
     if (report){
         cat("Scenario ", scenario, " concluding at: ", date(), " (", timetaken(start), ")\n", sep="")
-        cat("Final case count across all runs (scenario ", scenario, "): ", nrow(results_raw), "\n", sep="")
+        cat("Scenario ", scenario, " final case count across all runs: ", nrow(results_raw), "\n", sep="")
     }
     return(results_raw)
 }

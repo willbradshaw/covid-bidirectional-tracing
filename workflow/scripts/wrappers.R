@@ -140,6 +140,9 @@ map_scenario <- function(scenario, n_iterations, report,
     scenario_data <- summarise_by_scenario(case_data, colnames(scenario), ci_width,
                                            alpha_prior, beta_prior)
     gc(verbose=FALSE, full=TRUE)
+    #print(scenario$scenario)
+    #print(head(case_data))
+    #print(scenario_data)
     return(scenario_data)
 }
 
@@ -164,7 +167,7 @@ parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
                                        alpha_prior = alpha_prior,
                                        beta_prior = beta_prior)
     sim_data <- mclapply(1:nrow(scenarios), sim_fn, mc.cores = threads)
-    print(sim_data)
+    #print(sim_data)
     return(sim_data %>% rbindlist)
 }
 
