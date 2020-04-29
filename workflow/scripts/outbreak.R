@@ -15,7 +15,8 @@ rep_new_cases <- function(tab, col){
 set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
                                          test_time, test_sensitivity,
                                          test_serological, p_ident_sym,
-                                         p_compliance_isolation
+                                         p_compliance_isolation,
+                                         p_data_sharing_auto, p_data_sharing_manual
                                          ){
     #' Set primary immutable keys for index cases
     data.table(case_id = 1:n_initial_cases,
@@ -26,16 +27,19 @@ set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
                testable = purrr::rbernoulli(n_initial_cases, test_sensitivity), # TODO: See above
                ident_sym = purrr::rbernoulli(n_initial_cases, p_ident_sym),
                isolates = purrr::rbernoulli(n_initial_cases, p_compliance_isolation),
+               shares_data_auto = purrr::rbernoulli(n_initial_cases, p_data_sharing_auto),
+               shares_data_manual = purrr::rbernoulli(n_initial_cases, p_data_sharing_manual),
                generation = 0, infector_id = 0, infector_onset_gen = Inf,
                infector_exposure = Inf,
                infector_onset_true = Inf, infector_asym = NA, infector_recovery = Inf,
-               infector_has_smartphone = NA, infector_shares_data = FALSE,
-               infector_isolates = FALSE)
+               infector_has_smartphone = NA, infector_shares_data_auto = FALSE,
+               infector_shares_data_manual = FALSE, infector_isolates = FALSE)
 }
 
 set_primary_immutables_child <- function(parents, p_asymptomatic, p_compliance_isolation,
                                          test_time, test_serological,
-                                         test_sensitivity, p_ident_sym, p_environmental
+                                         test_sensitivity, p_ident_sym, p_environmental,
+                                         p_data_sharing_auto, p_data_sharing_manual
                                          ){
     #' Set primary immutable keys for index cases
     n_children_total <- sum(parents$n_children)
@@ -48,6 +52,8 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_compliance_i
                               testable = purrr::rbernoulli(n_children_total, test_sensitivity),
                               ident_sym = purrr::rbernoulli(n_children_total, p_ident_sym),
                               isolates = purrr::rbernoulli(n_children_total, p_compliance_isolation),
+                              shares_data_auto = purrr::rbernoulli(n_children_total, p_data_sharing_auto),
+                              shares_data_manual = purrr::rbernoulli(n_children_total, p_data_sharing_manual),
                               generation = rep_new_cases(parents, "generation") + 1, # New generation number
                               infector_id = rep_new_cases(parents, "case_id"), # Parent case
                               infector_exposure = rep_new_cases(parents, "exposure"), # Exposure of parent (not used, but useful to know)
@@ -56,7 +62,8 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_compliance_i
                               infector_asym = rep_new_cases(parents, "asym"), # Is parent asymptomatic?
                               infector_recovery = rep_new_cases(parents, "recovery"), # Recovery time of parent
                               infector_has_smartphone = rep_new_cases(parents, "has_smartphone"), # Does parent have smartphone?
-                              infector_shares_data = rep_new_cases(parents, "shares_data"), # Does parent case share their contact data for tracing?
+                              infector_shares_data_auto = rep_new_cases(parents, "shares_data_auto"), # Does parent case share their contact data for tracing?
+                              infector_shares_data_manual = rep_new_cases(parents, "shares_data_manual"), # Does parent case share their contact data for tracing?
                               infector_isolates = rep_new_cases(parents, "isolates")) # Does parent comply with isolation?
     return(child_cases)
 }
@@ -68,8 +75,7 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                                      incubation_time, p_traced_auto, p_traced_manual,
                                      trace_time_auto, trace_time_manual,
                                      recovery_time, data_limit_auto, data_limit_manual,
-                                     contact_limit_auto, contact_limit_manual,
-                                     p_data_sharing_auto, p_data_sharing_manual){
+                                     contact_limit_auto, contact_limit_manual){
     #' Set secondary immutable keys
     cases %>% .[, `:=`(has_smartphone = purrr::rbernoulli(nrow(.),
                                                           ifelse(rep(index, nrow(.)), p_smartphone_overall,
@@ -81,18 +87,29 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                        n_children = n_children_fn(asym),
                        trace_if_neg = ifelse(asym, FALSE, trace_neg_symptomatic),
                        processed = FALSE)] %>% # (Not actually immutable, but independent of tracing)
-        .[, `:=`(auto_traced = ifelse(rep(index, nrow(.)), FALSE, infector_has_smartphone & has_smartphone),
+        .[, `:=`(auto_traced_fwd = rep(!index, nrow(.)) & infector_has_smartphone & has_smartphone & 
+                     infector_shares_data_auto & !environmental &
+                     purrr::rbernoulli(nrow(.), p_traced_auto),
+                 auto_traced_rev = rep(!index, nrow(.)) & infector_has_smartphone & has_smartphone & 
+                     shares_data_auto & !environmental &
+                     purrr::rbernoulli(nrow(.), p_traced_auto),
                  onset_gen = exposure + incubation_time(nrow(.)))] %>%
-        .[, shares_data := purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_data_sharing_auto,
-                                                            p_data_sharing_manual))] %>%
-        .[, `:=`(traceable_fwd = ifelse((environmental | (!infector_shares_data)), FALSE, purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual))),
-                 traceable_rev = ifelse((environmental | (!shares_data)), FALSE, purrr::rbernoulli(nrow(.), ifelse(auto_traced, p_traced_auto, p_traced_manual))),
-                 trace_delay_fwd = ifelse(auto_traced, trace_time_auto(nrow(.)), trace_time_manual(nrow(.))),
-                 trace_delay_rev = ifelse(auto_traced, trace_time_auto(nrow(.)), trace_time_manual(nrow(.))),
+        .[, `:=`(manual_traced_fwd = (rep(!index, nrow(.)) & !auto_traced_fwd & !environmental &
+                     infector_shares_data_manual & purrr::rbernoulli(nrow(.), p_traced_manual)),
+                 manual_traced_rev = (rep(!index, nrow(.)) & !auto_traced_rev & !environmental &
+                     shares_data_manual & purrr::rbernoulli(nrow(.), p_traced_manual)))] %>%
+        .[, `:=`(traceable_fwd = (auto_traced_fwd | manual_traced_fwd),
+                 traceable_rev = (auto_traced_rev | manual_traced_rev),
+                 trace_delay_fwd = ifelse(auto_traced_fwd, trace_time_auto(nrow(.)),
+                                          ifelse(manual_traced_fwd, trace_time_manual(nrow(.)), Inf)),
+                 trace_delay_rev = ifelse(auto_traced_rev, trace_time_auto(nrow(.)),
+                                          ifelse(manual_traced_rev, trace_time_manual(nrow(.)), Inf)),
                  onset_true = ifelse(asym, Inf, onset_gen),
                  recovery = recovery_time(onset_gen),
-                 data_limit = ifelse(auto_traced, data_limit_auto, data_limit_manual),
-                 contact_limit = ifelse(auto_traced, contact_limit_auto, contact_limit_manual)
+                 data_limit_fwd = ifelse(auto_traced_fwd, data_limit_auto, data_limit_manual),
+                 data_limit_rev = ifelse(auto_traced_rev, data_limit_auto, data_limit_manual),
+                 contact_limit_fwd = ifelse(auto_traced_fwd, contact_limit_auto, contact_limit_manual),
+                 contact_limit_rev = ifelse(auto_traced_rev, contact_limit_auto, contact_limit_manual)
         )]
 }
 
@@ -103,9 +120,9 @@ initialise_parental_mutables <- function(cases, parents){
                        infector_iso_time = rep_new_cases(parents, "isolation_time"),
                        infector_trace_init_time = rep_new_cases(parents, "trace_init_time")
                        )] %>%
-        .[, `:=`(in_data_threshold_fwd = (exposure + data_limit >= infector_trace_init_time),
-                 in_contact_threshold_fwd = (exposure + contact_limit >= pmin(infector_onset_true,
-                                                                             infector_trace_init_time))
+        .[, `:=`(in_data_threshold_fwd = (exposure + data_limit_fwd >= infector_trace_init_time),
+                 in_contact_threshold_fwd = (exposure + contact_limit_fwd >= pmin(infector_onset_true,
+                                                                                  infector_trace_init_time))
                  )]
 }
 
@@ -135,9 +152,9 @@ set_nonparental_mutables <- function(cases){
                                                  ifelse(test_positive, pmin(onset_true, quarantine_time + test_delay), # Otherwise, trace as soon as either symptoms appear or test comes back positive
                                                         onset_true)), # If test comes back negative, trace on symptom onset
                                           ifelse(test_positive, quarantine_time + test_delay, Inf)))] %>% # If only tracing symptomatics that test positive, trace on positive test result, otherwise never
-        .[, `:=`(in_data_threshold_rev = (exposure + data_limit >= trace_init_time),
-                 in_contact_threshold_rev = exposure + contact_limit >= pmin(onset_true,
-                                                                             trace_init_time)
+        .[, `:=`(in_data_threshold_rev = (exposure + data_limit_rev >= trace_init_time),
+                 in_contact_threshold_rev = exposure + contact_limit_rev >= pmin(onset_true,
+                                                                                 trace_init_time)
                  )]
 }
 
@@ -161,7 +178,9 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
                                           test_sensitivity = test_sensitivity,
                                           test_serological = test_serological,
                                           p_ident_sym = p_ident_sym,
-                                          p_compliance_isolation = p_compliance_isolation)
+                                          p_compliance_isolation = p_compliance_isolation,
+                                          p_data_sharing_auto = p_data_sharing_auto,
+                                          p_data_sharing_manual = p_data_sharing_manual)
     cases <- set_secondary_immutables(cases = cases, index = TRUE, p_smartphone_overall = p_smartphone_overall,
                                       p_smartphone_infector_yes = NA, p_smartphone_infector_no = NA,
                                       generation_time = generation_time, n_children_fn = n_children_fn,
@@ -171,9 +190,7 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
                                       trace_time_manual = trace_time_manual, recovery_time = recovery_time,
                                       data_limit_auto = data_limit_auto, data_limit_manual = data_limit_manual,
                                       contact_limit_auto = contact_limit_auto,
-                                      contact_limit_manual = contact_limit_manual,
-                                      p_data_sharing_auto = p_data_sharing_auto,
-                                      p_data_sharing_manual = p_data_sharing_manual)
+                                      contact_limit_manual = contact_limit_manual)
     # Set identification time (dependent on rollout delay, ident_sym) and parent mutables
     cases <- cases %>% .[, `:=`(infector_ident_time = Inf,
                                 infector_quar_time = Inf,
@@ -204,7 +221,9 @@ create_child_cases <- function(parents, p_asymptomatic, p_compliance_isolation,
                                           p_compliance_isolation = p_compliance_isolation,
                                           test_time = test_time, test_serological = test_serological,
                                           test_sensitivity = test_sensitivity, p_ident_sym = p_ident_sym,
-                                          p_environmental = p_environmental)
+                                          p_environmental = p_environmental,
+                                          p_data_sharing_auto = p_data_sharing_auto,
+                                          p_data_sharing_manual = p_data_sharing_manual)
     cases <- set_secondary_immutables(cases = cases, index = FALSE, p_smartphone_overall = NA,
                                       p_smartphone_infector_yes = p_smartphone_infector_yes,
                                       p_smartphone_infector_no = p_smartphone_infector_no,
@@ -215,8 +234,6 @@ create_child_cases <- function(parents, p_asymptomatic, p_compliance_isolation,
                                       trace_time_manual = trace_time_manual, recovery_time = recovery_time,
                                       data_limit_auto = data_limit_auto, data_limit_manual = data_limit_manual,
                                       contact_limit_auto = contact_limit_auto,
-                                      p_data_sharing_auto = p_data_sharing_auto,
-                                      p_data_sharing_manual = p_data_sharing_manual,
                                       contact_limit_manual = contact_limit_manual)
     # Initialise parental mutables
     cases <- initialise_parental_mutables(cases, parents)
@@ -375,9 +392,9 @@ update_parental_mutables <- function(cases){
                         infector_iso_time = cases$isolation_time[parent_indices],
                         infector_trace_init_time = cases$isolation_time[parent_indices])]
     # 4. Update secondary parental mutables
-    cases_parent[, `:=`(in_data_threshold_fwd = (exposure + data_limit >= infector_trace_init_time),
-                        in_contact_threshold_fwd = exposure + contact_limit >= pmin(infector_onset_true,
-                                                                         infector_trace_init_time))]
+    cases_parent[, `:=`(in_data_threshold_fwd = (exposure + data_limit_fwd >= infector_trace_init_time),
+                        in_contact_threshold_fwd = exposure + contact_limit_fwd >= pmin(infector_onset_true,
+                                                                                        infector_trace_init_time))]
     
     # 5. Combine with parentless cases and return
     return(rbind(cases_no_parent, cases_parent, fill=TRUE))

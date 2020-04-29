@@ -39,17 +39,17 @@ scenario_parameters:
     p_ident_sym: 0.9 # Proportion of symptomatic cases that are identified (without tracing)
     p_smartphone_overall: 1 # Proportion of cases with trace-enabled smartphones
     p_smartphone_link: -1 # Proportion of contacts of cases with smartphones who have smartphones (-1 to disable and just use p_smartphone_overall)
-    p_traced_auto: [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0] # Success rate of automated contact tracing (out of possible traces)
-    p_traced_manual: 1 # Success rate of manual contact tracing (out of possible traces that can't be traced automatically)
+    p_traced_auto: 0.5 # Success rate of automated contact tracing (out of possible traces)
+    p_traced_manual: 0.5 # Success rate of manual contact tracing (out of possible traces that can't be traced automatically)
     p_environmental: 0.1 # Proportion of contacts that are environmental (here = untraceable)
     p_compliance_isolation: 0.9 # Proportion of cases who comply with isolation/quarantine
     p_data_sharing_auto: 1 # Proportion of individuals who share/upload contact data for onward automated tracing
     p_data_sharing_manual: 1 # Proportion of individuals who share/upload contact data for onward manual tracing
-    test_sensitivity: [0.8,0.9] # P(positive test|true case)
+    test_sensitivity: 0.8 # P(positive test|true case)
 
     # Numeric values (for infinities, write "Inf")
     r0_base: 2.5 # Overall R0 in the absence of interventions
-    rel_r0_asymptomatic: [0.5, 0.75] # R0 of asymptomatic carriers in the absence of interventions, as a fraction of r0_base
+    rel_r0_asymptomatic: 0.5 # R0 of asymptomatic carriers in the absence of interventions, as a fraction of r0_base
     dispersion: 0.11 # Superspreading parameter (smaller = more variance in #offspring)
     generation_omega: 2 # Scale parameter of generation-time distribution
     generation_alpha: -0.3 # Skew parameter of GT distr. (smaller = more pre-symptomatic transmission)
