@@ -1,4 +1,4 @@
-#' Wrapper code for branching process model
+ #Wrapper code for branching process model
 
 #------------------------------------------------------------------------------
 # Summarise data
@@ -20,7 +20,7 @@ summarise_by_generation <- function(case_data, group_vars){
   data_out <- case_data %>% as.data.table %>% copy %>%
     .[, .(cases = .N, extinct = all(processed)), by = c("generation", group_vars)] %>%
     .[order(generation), cumulative_cases := cumsum(cases), by=group_vars] %>%
-    .[order(generation), effective_r0 := ifelse(extinct, 0, lead(cases)/cases), by=group_vars]
+    .[order(generation), effective_r0 := lead(cases)/cases, by=group_vars]
   return(data_out)
 }
 
@@ -58,8 +58,6 @@ summarise_by_scenario <- function(case_data, group_vars, ci_width = 0.95,
   db_runs <- summarise_by_run(case_data, group_vars)
   scenario_stats <- db_runs %>% copy %>%
     .[, .(n_runs = length(run), p_extinct = mean(extinct),
-          effective_r0_mean = mean(avg_effective_r0),
-          effective_r0_sd = sd(avg_effective_r0),
           p_exceed_case_cap = mean(total_cases > cap_cases),
           p_exceed_week_cap = mean(last_exposure_weeks > cap_max_weeks),
           p_exceed_gen_cap = mean(max_generation > cap_max_generations),
@@ -91,7 +89,6 @@ map_scenario <- function(scenario, n_iterations, report,
                          ci_width, alpha_prior, beta_prior
                          ){
     #' Initiate a scenario simulation from a 1-row scenario table
-    
     sim_out <- scenario_sim(n_iterations = n_iterations,
         dispersion = scenario$dispersion, r0_base = scenario$r0_base,
         rel_r0_asymptomatic = scenario$rel_r0_asymptomatic,
@@ -142,14 +139,11 @@ map_scenario <- function(scenario, n_iterations, report,
     scenario_data <- summarise_by_scenario(case_data, colnames(scenario), ci_width,
                                            alpha_prior, beta_prior)
     gc(verbose=FALSE, full=TRUE)
-    #print(scenario$scenario)
-    #print(head(case_data))
-    #print(scenario_data)
     return(scenario_data)
 }
 
 parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
-                            threads = NULL, show_progress = NULL, report = NULL,
+                            show_progress = NULL, report = NULL,
                             write_raw = NULL, write_weekly = NULL,
                             write_generational = NULL, write_run = NULL,
                             path_prefix = NULL, compress = NULL, ci_width = NULL,
@@ -168,8 +162,10 @@ parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
                                        ci_width = ci_width,
                                        alpha_prior = alpha_prior,
                                        beta_prior = beta_prior)
-    sim_data <- mclapply(1:nrow(scenarios), sim_fn, mc.cores = threads)
-    #print(sim_data)
+    sim_data <- furrr::future_map(1:nrow(scenarios), sim_fn,
+                                  .progress = show_progress)
+    print(sim_data)
+    print(lapply(sim_data, class))
     return(sim_data %>% rbindlist)
 }
 
@@ -178,7 +174,7 @@ parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
 #------------------------------------------------------------------------------
 
 simulate_process <- function(scenario_parameters = NULL, n_iterations = NULL,
-                             report = NULL, threads = NULL,
+                             report = NULL,
                              show_progress = NULL, path_prefix = NULL,
                              write_raw = NULL, write_weekly = NULL,
                              write_generational = NULL, write_run = NULL,
@@ -198,12 +194,11 @@ simulate_process <- function(scenario_parameters = NULL, n_iterations = NULL,
     expand.grid(KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE) %>%
     as_tibble %>% dplyr::mutate(scenario = 1:dplyr::n())
   cat("Number of scenarios:", nrow(scenarios), "\n")
-  cat("Requested cores:", threads, "\n")
-  cat("Available cores:", detectCores(), "\n")
-  threads <- max(threads, detectCores())
+  cat("Available cores:", availableCores(), "\n")
   # 2. Run parameter sweep
+  plan(multiprocess)
   sweep <- parameter_sweep(scenarios = scenarios, n_iterations = n_iterations,
-                           report = report, threads = threads,
+                           report = report,
                            show_progress = show_progress,
                            path_prefix = path_prefix,
                            write_raw = write_raw, write_weekly = write_weekly,

@@ -441,6 +441,7 @@ outbreak_step <- function(case_data = NULL,
     cases_all <- data.table::rbindlist(list(case_data_old, case_data_new, children_traced),
                                        fill=TRUE)
     cases_out <- trace_reverse(cases_all, backtrace_distance)
+    #gc(verbose=FALSE, full=TRUE)
     return(cases_out)
 }
 
@@ -458,6 +459,7 @@ run_outbreak <- function(index_case_fn = NULL, child_case_fn = NULL,
         case_data <- outbreak_step(case_data = case_data,
                                    child_case_fn = child_case_fn,
                                    backtrace_distance = backtrace_distance)
+        #gc(verbose=FALSE, full=TRUE)
     }
     gc(verbose=FALSE, full=TRUE)
     return(case_data)
