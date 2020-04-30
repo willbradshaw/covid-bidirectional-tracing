@@ -418,6 +418,86 @@ compute_p_smartphone_infector_no <- function(p_smartphone_overall,
                (1-p_smartphone_infector_yes))
 }
 
+#------------------------------------------------------------------------------
+# Summarise data
+#------------------------------------------------------------------------------
+
+summarise_by_week <- function(case_data, group_vars){
+    #' Convert a database of case reports into one of weekly case counts
+    group_vars <- c("scenario", "run", group_vars[! group_vars %in% c("scenario", "run")])
+    data_out <- case_data %>% as.data.table %>% copy %>%
+        .[, week := floor(exposure/7)] %>%
+        .[, .(cases = .N), by = c("week", group_vars)] %>%
+        .[order(week), cumulative_cases := cumsum(cases), by = group_vars]
+    return(data_out)
+}
+
+summarise_by_generation <- function(case_data, group_vars){
+    #' Convert a database of case reports into one of per-generation case counts
+    group_vars <- c("scenario", "run", group_vars[! group_vars %in% c("scenario", "run")])
+    data_out <- case_data %>% as.data.table %>% copy %>%
+        .[, .(cases = .N, extinct = all(processed)), by = c("generation", group_vars)] %>%
+        .[order(generation), cumulative_cases := cumsum(cases), by=group_vars] %>%
+        .[order(generation), effective_r0 := ifelse(extinct & generation == max(generation),
+                                                    0, lead(cases)/cases), by=group_vars]
+    return(data_out)
+}
+
+summarise_by_run <- function(case_data, group_vars){
+    #' Convert a database of case reports into one of per-run outcomes
+    group_vars <- c("scenario", "run", group_vars[! group_vars %in% c("scenario", "run")])
+    # Get per-generation summaries
+    db_gens  <- summarise_by_generation(case_data, group_vars)
+    # Get key summary statistics
+    case_stats <- case_data %>% as.data.table %>% copy %>%
+        .[, .(last_exposure_days = max(exposure),
+              extinct = all(processed)), by = group_vars] %>%
+        .[, `:=`(last_exposure_weeks = last_exposure_days/7,
+                 last_exposure_days = NULL)]
+    gen_stats <- db_gens %>% copy %>%
+        .[, .(avg_effective_r0 = sum(effective_r0*cases, na.rm = TRUE)/
+                  sum(cases + (effective_r0*0), na.rm = TRUE), # Weight each generation's R0 by the number of cases in that generation
+              total_cases = sum(cases),
+              max_generation = max(generation)), by = group_vars]
+    run_stats <- case_stats[gen_stats, on=group_vars] %>%
+        .[, controlled := extinct & 
+              max_generation < cap_max_generations &
+              last_exposure_weeks < cap_max_weeks &
+              total_cases < cap_cases]
+    return(run_stats)
+}
+
+summarise_by_scenario <- function(run_data, group_vars, ci_width = 0.95,
+                                  alpha_prior = 1, beta_prior = 1){
+    #' Convert a database of case reports
+    group_vars <- c("scenario", group_vars[! group_vars %in% c("scenario", "run")])
+    beta_bound <- function(q,x,y) qbeta(q, alpha_prior+x, beta_prior+y)
+    beta_lower <- function(x,y) beta_bound((1-ci_width)/2, x, y)
+    beta_upper <- function(x,y) beta_bound(1-(1-ci_width)/2, x, y)
+    scenario_stats <- run_data %>% copy %>%
+        .[, .(n_runs = length(run), p_extinct = mean(extinct),
+              effective_r0_mean = mean(avg_effective_r0),
+              effective_r0_sd = sd(avg_effective_r0),
+              p_exceed_case_cap = mean(total_cases > cap_cases),
+              p_exceed_week_cap = mean(last_exposure_weeks > cap_max_weeks),
+              p_exceed_gen_cap = mean(max_generation > cap_max_generations),
+              n_controlled = sum(controlled),
+              n_uncontrolled = sum(!controlled),
+              p_controlled = mean(controlled)), by = group_vars] %>%
+        .[, `:=`(p_controlled_lower = beta_lower(n_controlled, n_uncontrolled),
+                 p_controlled_upper = beta_upper(n_controlled, n_uncontrolled))]
+    return(scenario_stats)
+}
+
+write_dfile <- function(data, path_prefix, compress = TRUE){
+    if (!compress) f <- file else f <- gzfile
+    if (!compress) ext <- ".tsv" else ext <- ".tsv.gz"
+    dpath <- paste0(path_prefix, ext)
+    dfile <- f(dpath, "w")
+    write_tsv(data, dfile)
+    close(dfile)
+}
+
 #----------------------------------------------------------------------------
 # Outer simulation functions
 #----------------------------------------------------------------------------
@@ -446,146 +526,155 @@ outbreak_step <- function(case_data = NULL,
 }
 
 run_outbreak <- function(index_case_fn = NULL, child_case_fn = NULL,
-                         cap_max_generations = NULL, cap_max_weeks = NULL,
-                         cap_cases = NULL, backtrace_distance = NULL){
+                         write_raw = NULL, write_weekly = NULL,
+                         write_generational = NULL, path_prefix = NULL,
+                         compress = NULL, scenario_data = NULL){
     #' Run a single complete instance of the branching-process model
     # Set up initial cases
     case_data <- index_case_fn()
     # Run outbreak loop
-    while (max(case_data$exposure)/7 < cap_max_weeks & # Time limit
-           nrow(case_data) < cap_cases & # Cumulative case limit (TODO: Change to simultaneous/generational limit?)
-           max(case_data$generation) < cap_max_generations & # Generation limit
+    while (max(case_data$exposure)/7 < scenario_data$cap_max_weeks & # Time limit
+           nrow(case_data) < scenario_data$cap_cases & # Cumulative case limit
+           max(case_data$generation) < scenario_data$cap_max_generations & # Generation limit
            any(!case_data$processed)){ # Extinction condition
         case_data <- outbreak_step(case_data = case_data,
                                    child_case_fn = child_case_fn,
-                                   backtrace_distance = backtrace_distance)
+                                   backtrace_distance = scenario_data$backtrace_distance)
         #gc(verbose=FALSE, full=TRUE)
     }
+    # Summarise and write
+    case_data[, `:=`(scenario=scenario_data$scenario, run=scenario_data$run)]
+    cases_out <- as.data.table(scenario_data)[case_data, on=c("scenario", "run")]
+    path_prefix <- paste(path_prefix, scenario_data$scenario, scenario_data$run,
+                         sep="_")
+    if (write_raw){
+        write_dfile(cases_out, paste0(path_prefix, "_raw"), compress)
+    }
+    if (write_weekly){
+        week_data <- summarise_by_week(cases_out, colnames(scenario_data))
+        write_dfile(week_data, paste0(path_prefix, "_weekly"), compress)
+    }
+    if (write_generational){
+        gen_data <- summarise_by_generation(cases_out, colnames(scenario_data))
+        write_dfile(gen_data, paste0(path_prefix, "_gen"), compress)
+    }
+    run_data <- summarise_by_run(cases_out, colnames(scenario_data))
     gc(verbose=FALSE, full=TRUE)
-    return(case_data)
+    return(run_data)
 }
 
-scenario_sim <- function(n_iterations = NULL, dispersion = NULL, r0_base = NULL,
-                         rel_r0_asymptomatic = NULL, p_asymptomatic = NULL,
-                         generation_omega = NULL, generation_alpha = NULL,
-                         recovery_quantile = NULL, incubation_time = NULL,
-                         test_time = NULL, trace_time_auto = NULL,
-                         trace_time_manual = NULL,
-                         delay_time = NULL, n_initial_cases = NULL,
-                         test_sensitivity = NULL, test_serological = NULL, 
-                         p_ident_sym = NULL, p_smartphone_overall = NULL,
-                         p_smartphone_link = NULL, trace_neg_symptomatic = NULL,
-                         p_traced_auto = NULL, p_traced_manual = NULL,
-                         data_limit_auto = NULL, data_limit_manual = NULL,
-                         contact_limit_auto = NULL,
-                         contact_limit_manual = NULL,
-                         rollout_delay_gen = NULL, rollout_delay_days = NULL,
-                         p_compliance_isolation = NULL,
-                         cap_max_generations = NULL, cap_max_weeks = NULL,
-                         cap_cases = NULL, backtrace_distance = NULL,
-                         p_environmental = NULL, report = NULL,
-                         p_data_sharing_auto = NULL,
-                         p_data_sharing_manual = NULL,
-                         scenario = NULL
-                         ){
+scenario_sim <- function(scenario = NULL, n_iterations = NULL, report = NULL,
+                         write_raw = NULL, write_weekly = NULL,
+                         write_generational = NULL, write_run = NULL,
+                         path_prefix = NULL, compress = NULL,
+                         ci_width = NULL,
+                         alpha_prior = NULL, beta_prior = NULL){
     #' Run a specified number of outbreaks with identical parameters
     if (report){
         start <- proc.time()
-        cat("Scenario ", scenario, " beginning at: ", date(), "\n", sep="")
+        cat("Scenario ", scenario$scenario, " beginning at: ", date(), "\n", sep="")
     }
     # Compute auxiliary parameters
-    r0_asymptomatic <- rel_r0_asymptomatic * r0_base
-    r0_symptomatic <- compute_symptomatic_r0(r0_base, r0_asymptomatic, p_asymptomatic)
-    p_smartphone_infector_yes <- ifelse(p_smartphone_link < 0, p_smartphone_overall,
-                                        p_smartphone_link)
-    p_smartphone_infector_no <- compute_p_smartphone_infector_no(p_smartphone_overall,
+    r0_asymptomatic <- scenario$rel_r0_asymptomatic * scenario$r0_base
+    r0_symptomatic <- compute_symptomatic_r0(scenario$r0_base, r0_asymptomatic,
+                                             scenario$p_asymptomatic)
+    p_smartphone_infector_yes <- ifelse(scenario$p_smartphone_link < 0, 
+                                        scenario$p_smartphone_overall,
+                                        scenario$p_smartphone_link)
+    p_smartphone_infector_no <- compute_p_smartphone_infector_no(scenario$p_smartphone_overall,
                                                              p_smartphone_infector_yes)
     # Prepare fixed-shape distributions
-    n_children_fn <- function(asym) rnbinom(n=length(asym), size=dispersion,
+    n_children_fn <- function(asym) rnbinom(n=length(asym), size=scenario$dispersion,
                                             mu=ifelse(asym, r0_asymptomatic,
                                                       r0_symptomatic))
     generation_time <- function(onsets){
-        sn::rsn(n = length(onsets), xi = onsets, omega = generation_omega,
-                alpha = generation_alpha) %>%  ifelse(. < 0, 0, .)
+        sn::rsn(n = length(onsets), xi = onsets, omega = scenario$generation_omega,
+                alpha = scenario$generation_alpha) %>%  ifelse(. < 0, 0, .)
     } # "generation_alpha" previously known as "k" or "generation_k"
     recovery_time <- function(onsets){
-        sn::qsn(recovery_quantile, xi = onsets, omega = generation_omega,
-                alpha = generation_alpha)
+        sn::qsn(scenario$recovery_quantile, xi = onsets, omega = scenario$generation_omega,
+                alpha = scenario$generation_alpha)
     }
     # Parse flexible-shape distributions
-    incubation_time <- eval(parse(text=incubation_time))
-    test_time <- eval(parse(text=test_time))
-    trace_time_auto <- eval(parse(text=trace_time_auto))
-    trace_time_manual <- eval(parse(text=trace_time_manual))
-    delay_time <- eval(parse(text=delay_time))
+    incubation_time <- eval(parse(text=scenario$incubation_time))
+    test_time <- eval(parse(text=scenario$test_time))
+    trace_time_auto <- eval(parse(text=scenario$trace_time_auto))
+    trace_time_manual <- eval(parse(text=scenario$trace_time_manual))
+    delay_time <- eval(parse(text=scenario$delay_time))
     # Prepare case creation functions
-    index_case_fn <- purrr::partial(create_index_cases, n_initial_cases = n_initial_cases,
-                                    p_asymptomatic = p_asymptomatic,
-                                    test_time = test_time, test_sensitivity = test_sensitivity,
-                                    test_serological = test_serological, p_ident_sym = p_ident_sym,
-                                    p_smartphone_overall = p_smartphone_overall,
+    index_case_fn <- purrr::partial(create_index_cases, n_initial_cases = scenario$n_initial_cases,
+                                    p_asymptomatic = scenario$p_asymptomatic,
+                                    test_time = test_time, test_sensitivity = scenario$test_sensitivity,
+                                    test_serological = scenario$test_serological,
+                                    p_ident_sym = scenario$p_ident_sym,
+                                    p_smartphone_overall = scenario$p_smartphone_overall,
                                     n_children_fn = n_children_fn,
-                                    trace_neg_symptomatic = trace_neg_symptomatic,
+                                    trace_neg_symptomatic = scenario$trace_neg_symptomatic,
                                     incubation_time = incubation_time,
-                                    p_traced_auto = p_traced_auto,
-                                    p_traced_manual = p_traced_manual,
+                                    p_traced_auto = scenario$p_traced_auto,
+                                    p_traced_manual = scenario$p_traced_manual,
                                     trace_time_auto = trace_time_auto,
                                     trace_time_manual = trace_time_manual,
                                     recovery_time = recovery_time,
-                                    data_limit_auto = data_limit_auto,
-                                    data_limit_manual = data_limit_manual,
-                                    contact_limit_auto = contact_limit_auto,
-                                    contact_limit_manual = contact_limit_manual,
-                                    rollout_delay_gen = rollout_delay_gen,
-                                    rollout_delay_days = rollout_delay_days,
+                                    data_limit_auto = scenario$data_limit_auto,
+                                    data_limit_manual = scenario$data_limit_manual,
+                                    contact_limit_auto = scenario$contact_limit_auto,
+                                    contact_limit_manual = scenario$contact_limit_manual,
+                                    rollout_delay_gen = scenario$rollout_delay_gen,
+                                    rollout_delay_days = scenario$rollout_delay_days,
                                     delay_time = delay_time,
-                                    p_data_sharing_auto = p_data_sharing_auto,
-                                    p_data_sharing_manual = p_data_sharing_manual,
-                                    p_compliance_isolation = p_compliance_isolation
+                                    p_data_sharing_auto = scenario$p_data_sharing_auto,
+                                    p_data_sharing_manual = scenario$p_data_sharing_manual,
+                                    p_compliance_isolation = scenario$p_compliance_isolation
                                     )
     child_case_fn <- purrr::partial(create_child_cases,
-                                    p_asymptomatic = p_asymptomatic,
-                                    p_compliance_isolation = p_compliance_isolation,
-                                    test_time = test_time, test_sensitivity = test_sensitivity,
-                                    test_serological = test_serological, p_ident_sym = p_ident_sym,
+                                    p_asymptomatic = scenario$p_asymptomatic,
+                                    p_compliance_isolation = scenario$p_compliance_isolation,
+                                    test_time = test_time, test_sensitivity = scenario$test_sensitivity,
+                                    test_serological = scenario$test_serological,
+                                    p_ident_sym = scenario$p_ident_sym,
                                     p_smartphone_infector_yes = p_smartphone_infector_yes,
                                     p_smartphone_infector_no = p_smartphone_infector_no,
                                     generation_time = generation_time,
                                     n_children_fn = n_children_fn,
-                                    trace_neg_symptomatic = trace_neg_symptomatic,
+                                    trace_neg_symptomatic = scenario$trace_neg_symptomatic,
                                     incubation_time = incubation_time,
-                                    p_traced_auto = p_traced_auto,
-                                    p_traced_manual = p_traced_manual,
+                                    p_traced_auto = scenario$p_traced_auto,
+                                    p_traced_manual = scenario$p_traced_manual,
                                     trace_time_auto = trace_time_auto,
                                     trace_time_manual = trace_time_manual,
                                     recovery_time = recovery_time,
-                                    data_limit_auto = data_limit_auto,
-                                    data_limit_manual = data_limit_manual,
-                                    contact_limit_auto = contact_limit_auto,
-                                    contact_limit_manual = contact_limit_manual,
-                                    rollout_delay_gen = rollout_delay_gen,
-                                    rollout_delay_days = rollout_delay_days,
+                                    data_limit_auto = scenario$data_limit_auto,
+                                    data_limit_manual = scenario$data_limit_manual,
+                                    contact_limit_auto = scenario$contact_limit_auto,
+                                    contact_limit_manual = scenario$contact_limit_manual,
+                                    rollout_delay_gen = scenario$rollout_delay_gen,
+                                    rollout_delay_days = scenario$rollout_delay_days,
                                     delay_time = delay_time,
-                                    p_environmental = p_environmental,
-                                    p_data_sharing_auto = p_data_sharing_auto,
-                                    p_data_sharing_manual = p_data_sharing_manual
+                                    p_environmental = scenario$p_environmental,
+                                    p_data_sharing_auto = scenario$p_data_sharing_auto,
+                                    p_data_sharing_manual = scenario$p_data_sharing_manual
                                     )
     # Execute runs
     iter_out <- purrr::map(.x = 1:n_iterations,
                            ~ run_outbreak(index_case_fn = index_case_fn,
                                           child_case_fn = child_case_fn,
-                                          cap_max_generations = cap_max_generations,
-                                          cap_max_weeks = cap_max_weeks,
-                                          cap_cases = cap_cases,
-                                          backtrace_distance = backtrace_distance))
-    gc(verbose=FALSE, full=TRUE)
-    # Label and concatenate
-    results_raw <- lapply(1:n_iterations, function(n) iter_out[[n]][, run := n]) %>%
-        data.table::rbindlist(fill = TRUE) %>% .[, scenario := scenario]
+                                          write_raw = write_raw, write_weekly = write_weekly,
+                                          write_generational = write_generational,
+                                          path_prefix = path_prefix, 
+                                          compress = compress,
+                                          scenario_data = scenario %>% mutate(run=.x)))
+    # Concatenate and write
+    run_data <- iter_out %>% rbindlist
+    if (write_run){
+        path_prefix <- paste(path_prefix, scenario$scenario, sep="_")
+        write_dfile(run_data, paste0(path_prefix, "_run"), compress)
+    }
+    scenario_data <- summarise_by_scenario(run_data, colnames(scenario), ci_width,
+                                           alpha_prior, beta_prior)
     gc(verbose=FALSE, full=TRUE)
     if (report){
-        cat("Scenario ", scenario, " concluding at: ", date(), " (", timetaken(start), ")\n", sep="")
-        cat("Scenario ", scenario, " final case count across all runs: ", nrow(results_raw), "\n", sep="")
+        cat("Scenario ", scenario$scenario, " concluding at: ", date(), " (", timetaken(start), ")\n", sep="")
     }
-    return(results_raw)
+    return(scenario_data)
 }
