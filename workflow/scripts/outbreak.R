@@ -122,7 +122,7 @@ initialise_parental_mutables <- function(cases, parents){
                        )] %>%
         .[, `:=`(in_data_threshold_fwd = (exposure + data_limit_fwd >= infector_trace_init_time),
                  in_contact_threshold_fwd = (exposure + contact_limit_fwd >= pmin(infector_onset_true,
-                                                                                  infector_trace_init_time))
+                                                                                  infector_quar_time))
                  )]
 }
 
@@ -154,7 +154,7 @@ set_nonparental_mutables <- function(cases){
                                           ifelse(test_positive, quarantine_time + test_delay, Inf)))] %>% # If only tracing symptomatics that test positive, trace on positive test result, otherwise never
         .[, `:=`(in_data_threshold_rev = (exposure + data_limit_rev >= trace_init_time),
                  in_contact_threshold_rev = exposure + contact_limit_rev >= pmin(onset_true,
-                                                                                 trace_init_time)
+                                                                                 quarantine_time)
                  )]
 }
 
@@ -394,7 +394,7 @@ update_parental_mutables <- function(cases){
     # 4. Update secondary parental mutables
     cases_parent[, `:=`(in_data_threshold_fwd = (exposure + data_limit_fwd >= infector_trace_init_time),
                         in_contact_threshold_fwd = exposure + contact_limit_fwd >= pmin(infector_onset_true,
-                                                                                        infector_trace_init_time))]
+                                                                                        infector_quar_time))]
     
     # 5. Combine with parentless cases and return
     return(rbind(cases_no_parent, cases_parent, fill=TRUE))
