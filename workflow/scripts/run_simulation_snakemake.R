@@ -1,4 +1,6 @@
-#' Run simulation within a Snakemake workflow
+# Run simulation within a Snakemake workflow
+# Author: William J. Bradshaw
+# Date: 5 May 2020
 
 # Libraries and functions
 suppressMessages(library(tidyverse))

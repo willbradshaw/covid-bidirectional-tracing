@@ -1,4 +1,7 @@
-#' Wrapper code for branching process model
+# Wrapper code for branching process model
+# Author: William J. Bradshaw (heavily modified from code by Joel Hellewell
+#                              and Sam Abbott)
+# Date: 5 May 2020
 
 #------------------------------------------------------------------------------
 # Run parameter sweep

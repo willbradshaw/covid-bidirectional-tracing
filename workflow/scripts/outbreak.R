@@ -1,4 +1,7 @@
-#' Core functionality for branching-chain outbreak model
+# Core functionality for branching-chain outbreak model
+# Author: William J. Bradshaw (heavily modified from code by Joel Hellewell
+#                              and Sam Abbott)
+# Date: 5 May 2020
 
 #----------------------------------------------------------------------------
 # Create new cases

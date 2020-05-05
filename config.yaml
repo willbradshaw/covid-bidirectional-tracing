@@ -4,7 +4,7 @@
 # High-level simulation parameters
 #=============================================================================
 
-simulation_name: "default"
+simulation_name: "covid_median"
 
 n_threads_max: 1000 # Max no. of cores to use for simulation
 n_iterations: 10 # Number of runs per scenario
@@ -35,30 +35,30 @@ output_parameters: # Write options (NB: overall scenario summaries always writte
 scenario_parameters:
 
     # Probabilities (0 to 1)
-    p_asymptomatic: 0.4 # Proportion of cases that are fully asymptomatic carriers
+    p_asymptomatic: 0.45 # Proportion of cases that are fully asymptomatic carriers
     p_ident_sym: 0.9 # Proportion of symptomatic cases that are identified (without tracing)
-    p_smartphone_overall: 1 # Proportion of cases with trace-enabled smartphones
+    p_smartphone_overall: 0.8 # Proportion of cases with trace-enabled smartphones
     p_smartphone_link: -1 # Proportion of contacts of cases with smartphones who have smartphones (-1 to disable and just use p_smartphone_overall)
-    p_traced_auto: 0.5 # Success rate of automated contact tracing (out of possible traces)
-    p_traced_manual: 0.5 # Success rate of manual contact tracing (out of possible traces that can't be traced automatically)
+    p_traced_auto: 0.9 # Success rate of automated contact tracing (out of possible traces)
+    p_traced_manual: 0.9 # Success rate of manual contact tracing (out of possible traces that can't be traced automatically)
     p_environmental: 0.1 # Proportion of contacts that are environmental (here = untraceable)
     p_compliance_isolation: 0.9 # Proportion of cases who comply with isolation/quarantine
     p_data_sharing_auto: 1 # Proportion of individuals who share/upload contact data for onward automated tracing
-    p_data_sharing_manual: 1 # Proportion of individuals who share/upload contact data for onward manual tracing
-    test_sensitivity: 0.8 # P(positive test|true case)
+    p_data_sharing_manual: 0.9 # Proportion of individuals who share/upload contact data for onward manual tracing
+    test_sensitivity: 0.9 # P(positive test|true case)
 
     # Numeric values (for infinities, write "Inf")
     r0_base: 2.5 # Overall R0 in the absence of interventions
     rel_r0_asymptomatic: 0.5 # R0 of asymptomatic carriers in the absence of interventions, as a fraction of r0_base
     dispersion: 0.11 # Superspreading parameter (smaller = more variance in #offspring)
     generation_omega: 2 # Scale parameter of generation-time distribution
-    generation_alpha: -0.3 # Skew parameter of GT distr. (smaller = more pre-symptomatic transmission)
+    generation_alpha: 0.064 # Skew parameter of GT distr. (smaller = more pre-symptomatic transmission)
     recovery_quantile: 0.999 # Quantile of GT distr. to use as recovery time (larger = later recov.)
     n_initial_cases: 20 # Number of independent index cases
     data_limit_auto: 14 # Number of days contact data for automated tracing is retained
     data_limit_manual: Inf # Number of days contact data for manual tracing is retained
     contact_limit_auto: Inf # Number of days prior to min(trace initiation, symptom onset) scanned for contacts under automated tracing
-    contact_limit_manual: 2 # Number of days prior to min(trace initiation, symptom onset) scanned for contacts under manual tracing
+    contact_limit_manual: 7 # Number of days prior to min(trace initiation, symptom onset) scanned for contacts under manual tracing
     rollout_delay_gen: 0 # Delay in generations between simulation start and initiation of response
     rollout_delay_days: 0 # Delay in days between simulation start and initiation of response
     cap_max_generations: Inf # Maximum number of simulation generations before control fails
@@ -72,7 +72,7 @@ scenario_parameters:
 
     # Distributions (specified as R-function strings)
     incubation_time: "function(n) rlnorm(n=n, meanlog = 1.644, sdlog = 0.363)" # Time between exposure and symptom onset
-    test_time: "function(n) rgamma(n=n, shape=1, rate=2) + 1" # Time between identification and test results
+    test_time: "function (n) rgamma(n=n, shape=3, rate=6)+0.5" # Time taken to perform test
     trace_time_auto: "function(n) rep(0, n)" # Time taken to trace contacts using automated tracing
     trace_time_manual: "function(n) rlnorm(n=n, meanlog=log(0.5), sdlog=1.5)" # Time taken to trace contacts using manual tracing
     delay_time: "function(n) rweibull(n=n, scale = 4.287786, shape = 1.651524)" # Time between symptom onset and case identification
