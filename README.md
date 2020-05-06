@@ -19,7 +19,11 @@ To run the branching-process model for a given set of assumptions:
 ```snakemake --use-conda --cores <n_cores>```
 
 To generate figures from existing data, run
+
 ```Rscript figures/scripts/fig2.R```
+
 ```Rscript figures/scripts/fig3.R```
+
 ```Rscript figures/scripts/fig4.R```
+
 PNG/SVG images will be saved in `figures/img` within the project directory.
