@@ -1,5 +1,7 @@
 # Bidirectional contact tracing is required for reliable COVID-19 control
+
 William J. Bradshaw, Ethan C. Alley, Jonathan H. Huggins, Alun L. Lloyd, and Kevin M. Esvelt
+
 DOI: [DOI here]
  
 ## Abstract 
@@ -20,10 +22,8 @@ To run the branching-process model for a given set of assumptions:
 
 To generate figures from existing data, run
 
-```Rscript figures/scripts/fig2.R```
-
-```Rscript figures/scripts/fig3.R```
-
-```Rscript figures/scripts/fig4.R```
+- ```Rscript figures/scripts/fig2.R```
+- ```Rscript figures/scripts/fig3.R```
+- ```Rscript figures/scripts/fig4.R```
 
 PNG/SVG images will be saved in `figures/img` within the project directory.
