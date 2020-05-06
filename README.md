@@ -14,7 +14,7 @@ To run the branching-process model for a given set of assumptions:
 
 - [Install conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and [Snakemake](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html) on your system.
 - Navigate to the home directory of this project.
-- Edit `config.yaml` to include the values of interest; the model will run all combinations of values across all `scenario_parameters` keys.
+- Edit `config.yaml` to include the values of interest; the model will run all combinations of values across all `scenario_parameters` keys. Example config files can be found in `figures/configs`.
 - To the model with all available cores, run:
 ```snakemake --use-conda --cores```
 - To specify a number of cores, run:
