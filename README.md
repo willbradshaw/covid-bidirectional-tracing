@@ -1,6 +1,8 @@
 # Bidirectional contact tracing is required for reliable COVID-19 control
 
 William J. Bradshaw, Ethan C. Alley, Jonathan H. Huggins, Alun L. Lloyd, and Kevin M. Esvelt
+
+Adapted from code originally published [here](https://github.com/cmmid/ringbp). 
  
 ## Abstract 
 
