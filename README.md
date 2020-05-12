@@ -2,6 +2,8 @@
 
 William J. Bradshaw, Ethan C. Alley, Jonathan H. Huggins, Alun L. Lloyd, and Kevin M. Esvelt
 
+DOI: https://doi.org/10.1101/2020.05.06.20093369 (medRxiv preprint)
+
 Adapted from code originally published [here](https://github.com/cmmid/ringbp). 
  
 ## Abstract 
