@@ -155,7 +155,7 @@ contour_plot_digital_fwd <- contour_plot(contour_data, FALSE, 0,
   ggtitle("Forward-only digital\ntracing")
 contour_plot_combo_fwd     <- contour_plot(contour_data, TRUE, 0,
                                            contour_palette_fwd) +
-  ggtitle("Forward-only combined\ntracing (7-day manual limit)")
+  ggtitle("Forward-only hybrid\ntracing (7-day manual limit)")
 
 contour_plot_grid <- plot_grid(contour_plot_digital_fwd,
                                contour_plot_combo_fwd,

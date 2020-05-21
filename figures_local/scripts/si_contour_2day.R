@@ -151,10 +151,10 @@ contour_plot <- function(data, inc_manual, bt_dist,
 #------------------------------------------------------------------------------
 
 contour_plot_combo_bidir   <- contour_plot(contour_data, TRUE, Inf) +
-  ggtitle("Bidirectional combined\ntracing, 2-day manual limit")
+  ggtitle("Bidirectional hybrid\ntracing, 2-day manual limit")
 contour_plot_combo_fwd     <- contour_plot(contour_data, TRUE, 0,
                                            contour_palette_fwd) +
-  ggtitle("Forward-only combined\ntracing, 2-day manual limit")
+  ggtitle("Forward-only hybrid\ntracing, 2-day manual limit")
 
 contour_plot_grid <- plot_grid(contour_plot_combo_bidir,
                                contour_plot_combo_fwd,

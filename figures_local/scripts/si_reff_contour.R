@@ -176,21 +176,21 @@ contour_fwd_digital  <- contour_data %>% filter(contact_limit_manual == 7) %>%
   contour_plot_reff(FALSE, 0, fwd_palette_sparse, 1, 0.1) +
   ggtitle("Forward-only digital\ntracing")
 
-# Combined 2-day
+# Hybrid 2-day
 contour_bidir_combo_2day <- contour_data %>% filter(contact_limit_manual == 2) %>% 
   contour_plot_reff(TRUE, Inf, bidir_palette_dense, 0, 0.05) +
-  ggtitle("Bidirectional combined\ntracing, 2-day manual limit")
+  ggtitle("Bidirectional hybrid\ntracing, 2-day manual limit")
 contour_fwd_combo_2day  <- contour_data %>% filter(contact_limit_manual == 2) %>% 
   contour_plot_reff(TRUE, 0, fwd_palette_dense, 0, 0.05) +
-  ggtitle("Forward-only combined\ntracing, 2-day manual limit")
+  ggtitle("Forward-only hybrid\ntracing, 2-day manual limit")
 
-# Combined, 7-day
+# Hybrid, 7-day
 contour_bidir_combo_7day <- contour_data %>% filter(contact_limit_manual == 7) %>% 
   contour_plot_reff(TRUE, Inf, bidir_palette_dense, 0, 0.05) +
-  ggtitle("Bidirectional combined\ntracing, 7-day manual limit")
+  ggtitle("Bidirectional hybrid\ntracing, 7-day manual limit")
 contour_fwd_combo_7day  <- contour_data %>% filter(contact_limit_manual == 7) %>% 
   contour_plot_reff(TRUE, 0, fwd_palette_dense, 0, 0.05) +
-  ggtitle("Forward-only combined\ntracing, 7-day manual limit")
+  ggtitle("Forward-only hybrid\ntracing, 7-day manual limit")
 
 
 contour_grid <- plot_grid(contour_fwd_digital, contour_fwd_combo_2day, contour_fwd_combo_7day,

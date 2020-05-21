@@ -238,8 +238,10 @@ save_fig <- function(path_prefix, path_suffix, plot, plot_scale,
 path_prefix <- "figures_local/img/si_limits_"
 
 # 48% pre-symptomatic
-row_height <- 8
-save_fig(path_prefix, "manual.png", limit_plot_manual, row_height*5, 1.4/2)
-save_fig(path_prefix, "combo.png", limit_plot_combo, row_height*5, 1.4/2)
+row_height <- 7
+plot_scale <- row_height * 4.5
+plot_ratio <- 1
+save_fig(path_prefix, "manual.png", limit_plot_manual, plot_scale, plot_ratio)
+save_fig(path_prefix, "combo.png", limit_plot_combo, plot_scale, plot_ratio)
 
 
