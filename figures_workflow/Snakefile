@@ -75,17 +75,12 @@ rule main_strategies:
         window = config["data"]["main"]["strategies"]["window"],
     output:
         main = os.path.join(out_dir, "main_strategies.png"),
-        si_ptrace_ctrl = os.path.join(out_dir, "si_strategies-ptrace-ctrl.png"),
-        si_uptake_ctrl = os.path.join(out_dir, "si_strategies-uptake-ctrl.png"),
         si_uptake_reff = os.path.join(out_dir, "si_strategies-uptake-reff.png"),
     log: os.path.join(log_dir, "main_strategies.log")
     conda: env_main
     params:
         panel_scale = 13,
     script: os.path.join(script_dir, "main_strategies.R")
-    # TODO: Switch to low digital uptake as default
-    # TODO: Switch out subfigure e for tracing window plot
-    # TODO: Update SI figures to match above two changes
 
 rule si_strategies_window:
     """Generate tracing-window contour plots for manual and hybrid tracing."""
