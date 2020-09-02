@@ -1,6 +1,6 @@
-logfile <- file(snakemake@log[[1]], open = "wt")
-sink(logfile ,type = "output")
-sink(logfile, type = "message")
+# logfile <- file(snakemake@log[[1]], open = "wt")
+# sink(logfile ,type = "output")
+# sink(logfile, type = "message")
 
 cat("Preparing to run script...")
 
@@ -15,21 +15,21 @@ theme_base <- theme_base + theme(
 )
 
 # Input paths
-median_path <- snakemake@input[["median"]]
-optim_path <- snakemake@input[["optimistic"]]
-pessim_path <- snakemake@input[["pessimistic"]]
-# median_path <- "data/si_window_median_1k_scenario.tsv.gz"
-# optim_path <- "data/si_window_optimistic_1k_scenario.tsv.gz"
-# pessim_path <- "data/si_window_pessimistic_1k_scenario.tsv.gz"
+#median_path <- snakemake@input[["median"]]
+#optim_path <- snakemake@input[["optimistic"]]
+#pessim_path <- snakemake@input[["pessimistic"]]
+median_path <- "data/si_window_median_1k_scenario.tsv.gz"
+optim_path <- "data/si_window_optimistic_1k_scenario.tsv.gz"
+pessim_path <- "data/si_window_pessimistic_1k_scenario.tsv.gz"
 
 # Output paths & parameters
-plot_scale_cm <- snakemake@params[["panel_scale"]]
-manual_path <- snakemake@output[["manual"]]
-hybrid_path <- snakemake@output[["hybrid"]]
-# plot_scale_cm <- 13
-# manual_path <- "output_files/dev_si_window_manual.png"
-# hybrid_path <- "output_files/dev_si_window_hybrid.png"
+#plot_scale_cm <- snakemake@params[["panel_scale"]]
+#manual_path <- snakemake@output[["manual"]]
+#hybrid_path <- snakemake@output[["hybrid"]]
+plot_scale_cm <- 13
 plot_scale_in <- plot_scale_cm/2.54
+manual_path <- "output_files/dev_si_window_manual.png"
+hybrid_path <- "output_files/dev_si_window_hybrid.png"
 
 cat("done.\n")
 
@@ -180,15 +180,15 @@ cat("done.\n")
 
 #==============================================================================
 # Save output
-#=============================================================================
+#==============================================================================
 
 cat("\nSaving output...")
 
 # Manual
 cat("\n\tManual tracing...")
 cowplot::save_plot(filename=manual_path,
-       plot=reff_contour_manual, ncol=2.5, nrow=1.9, 
-       base_height=plot_scale_in, base_asp = 1)
+                   plot=reff_contour_manual, ncol=2.5, nrow=1.9, 
+                   base_height=plot_scale_in, base_asp = 1)
 
 cat("\n\tHybrid tracing...")
 cowplot::save_plot(filename=hybrid_path,

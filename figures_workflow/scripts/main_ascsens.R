@@ -2,41 +2,48 @@
 # Preamble
 #==============================================================================
 
-# logfile <- file(snakemake@log[[1]], open = "wt")
-# sink(logfile ,type = "output")
-# sink(logfile, type = "message")
+logfile <- file(snakemake@log[[1]], open = "wt")
+sink(logfile ,type = "output")
+sink(logfile, type = "message")
 
 cat("Preparing to run script...")
 
 # Source formatting
 source("scripts/aux_format-plots.R")
 
+# Specify input paths
+asc_path <- snakemake@input[["ascertainment"]]
+sens_path <- snakemake@input[["sensitivity"]]
+# asc_path <- "data/main_ascsens_ascertainment_1k_scenario.tsv.gz"
+# sens_path <- "data/main_ascsens_sensitivity_1k_scenario.tsv.gz"
+
+# Specify parameters
+uptake_main <- snakemake@params[["uptake_main"]]
+window_main <- snakemake@params[["window_main"]]
+legend_fill <- snakemake@params[["legend_fill"]]
+plot_scale_cm <- snakemake@params[["panel_scale"]]
+# uptake_main <- 0.8 # TODO: Switch to lower uptake
+# window_main <- 6
+# plot_scale_cm <- 13
+# legend_fill <- "#F6F6F6"
+plot_scale_in <- plot_scale_cm/2.54
+
+# Specify output path(s)
+main_path <- snakemake@output[[1]]
+# main_path <- "output_files/dev_main_ascsens.png"
+
 theme_base <- theme_base + theme(
   plot.margin = margin(l = 0.2, r = 0.2, b = -0.3,
                        t = -0.2, unit = "cm"),
   axis.title.y = element_text(margin = margin(r = 0.15, unit = "cm")),
-  axis.title.x = element_text(margin = margin(t = 0.2, b = 0, unit = "cm"))
+  axis.title.x = element_text(margin = margin(t = 0.2, b = 0, unit = "cm")),
+  legend.box.background = element_rect(fill = legend_fill, linetype = "blank"),
+  legend.background = element_rect(fill = legend_fill, linetype = "blank"),
+  legend.key = element_rect(colour = NA, fill = NA),
 )
+
 cat("done.\n")
 
-# Specify input paths
-#asc_path <- snakemake@input[["ascertainment"]]
-#sens_path <- snakemake@input[["sensitivity"]]
-asc_path <- "data/main_ascsens_ascertainment_1k_scenario.tsv.gz"
-sens_path <- "data/main_ascsens_sensitivity_1k_scenario.tsv.gz"
-
-# Specify parameters
-#uptake_main <- snakemake@parameters[["uptake_main"]]
-#window_main <- snakemake@parameters[["window_main"]]
-#plot_scale_cm <- snakemake@params[["panel_scale"]]
-uptake_main <- 0.8 # TODO: Switch to lower uptake
-window_main <- 6
-plot_scale_cm <- 13
-plot_scale_in <- plot_scale_cm/2.54
-
-# Specify output path(s)
-#main_path <- snakemake@output[[1]]
-main_path <- "output_files/dev_main_ascsens.png"
 
 #==============================================================================
 # Read in data
@@ -139,7 +146,7 @@ cat("done.\n")
 
 cat("\nSaving output...")
 
-cowplot::save_plot(filename=main_path, plot=grid_reff,
-                   ncol = 3, nrow = 1, base_height = plot_scale_in,
+cowplot::save_plot(filename=main_path, plot=grid_out,
+                   ncol = 3, nrow = 1.1, base_height = plot_scale_in,
                    base_asp = 0.8)
 cat("done.\n")

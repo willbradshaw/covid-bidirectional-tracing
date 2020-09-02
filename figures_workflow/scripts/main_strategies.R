@@ -28,6 +28,8 @@ window_path <- snakemake@input[["window"]]
 # uptake_path <- "data/main_strategies_uptake_1k_scenario.tsv.gz"
 # window_path <- "data/si_window_median_1k_scenario.tsv.gz"
 
+# uptake_main <- 0.8
+uptake_main <- snakemake@params[["uptake_main"]]
 
 # Output paths & parameters
 plot_scale_cm <- snakemake@params[["panel_scale"]]
@@ -70,7 +72,7 @@ uptake_data <- suppressMessages(read_tsv(uptake_path)) %>%
 # Window contour plots
 
 window_data <- suppressMessages(read_tsv(window_path)) %>% 
-  filter(p_traced_auto != 0, p_smartphone_overall == 0.53,
+  filter(p_traced_auto != 0, p_smartphone_overall == uptake_main,
          backtrace_distance == Inf) %>%
   index_data(key_x = "contact_limit_manual", key_y = "p_traced_manual") %>%
   smooth_data(group_vars = c())
@@ -206,7 +208,8 @@ window_contour <- window_data %>%
                      labels = label_pc) +
   theme(aspect.ratio = 1)
 
-label_window <- "Effective reprod. number, given\n53% smartphone coverage"
+label_window <- paste0("Effective reprod. number, given\n",
+                       round(uptake_main*100), "% smartphone coverage")
 window_contour_labelled <- window_contour +
   annotate("label", x=0.02, y=9.8, label=label_window,
            hjust = 0, vjust = 1, size = fontsize_base * 5/14,

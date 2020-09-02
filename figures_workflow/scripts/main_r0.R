@@ -52,7 +52,7 @@ test_path <- snakemake@output[["si_test"]]
 
 # Modify theme
 theme_base <- theme_base + theme(
-  plot.margin = margin(l = 0.2, r = 0.2, b = -0.3,
+  plot.margin = margin(l = 0.4, r = 0.4, b = -0.3,
                        t = -0.2, unit = "cm"),
   axis.title.y = element_text(margin = margin(r = 0.15, unit = "cm")),
   axis.title.x = element_text(margin = margin(t = 0.2, b = 0, unit = "cm")),
@@ -177,17 +177,18 @@ reff_plot <- function(data, coord_ratio_base = 1.5){
 }
 
 grid_plot <- function(data, coord_ratio_base = 1.5,
-                      ctrl_upper = TRUE, join_scale = 20){
+                      ctrl_top = ctrl_upper, join_scale = 20){
   ctrl <- ctrl_plot(data, coord_ratio_base)
   reff <- reff_plot(data, coord_ratio_base)
   if (ctrl_upper){
     ctrl <- ctrl %>% strip_upper(join_scale)
     reff <- reff %>% strip_lower(join_scale)
+    grid_out <- plot_grid(ctrl, reff, nrow = 2, align = "vh", axis = "l")
   } else {
     ctrl <- ctrl %>% strip_lower(join_scale)
     reff <- reff %>% strip_upper(join_scale)
+    grid_out <- plot_grid(reff, ctrl, nrow = 2, align = "vh", axis = "l")
   }
-  grid_out <- plot_grid(ctrl, reff, nrow = 2, align = "vh", axis = "l")
   return(grid_out)
 }
 
@@ -211,7 +212,7 @@ cat("\nSaving output...")
 
 save_fig <- function(path, graph){
   cowplot::save_plot(filename=path, plot=graph,
-                     ncol = 3, nrow = 2.25, base_height = plot_scale_in,
+                     ncol = 3.1, nrow = 2.25, base_height = plot_scale_in,
                      base_asp = 1.2)
 }
 
