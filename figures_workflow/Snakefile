@@ -1,0 +1,248 @@
+# Snakefile for generating manuscript figures
+
+#==============================================================================
+# PREAMBLE
+#==============================================================================
+
+configfile: "config.yaml"
+
+# Import modules
+import os
+
+# Specify directory paths
+out_dir = "output_files"
+log_dir = "log_files"
+env_dir = "env"
+script_dir = "scripts"
+
+# Specify conda environment
+env_main = os.path.join(env_dir, "env.yaml")
+
+#==============================================================================
+# DEFAULT RULE
+#==============================================================================
+
+rule all:
+    """Generate figure images for manuscript."""
+    input:
+        os.path.join(out_dir, "main_strategies.png"),
+        os.path.join(out_dir, "si_strategies-ptrace-lowuptake.png"),
+        os.path.join(out_dir, "si_strategies-ptrace-ctrl.png"),
+        os.path.join(out_dir, "si_strategies-uptake-ctrl.png"),
+        os.path.join(out_dir, "si_strategies-uptake-comp.png"),
+        os.path.join(out_dir, "si_strategies-window-manual.png"),
+        os.path.join(out_dir, "si_strategies-window-hybrid-reff.png"),
+        os.path.join(out_dir, "si_strategies-window-hybrid-ctrl.png"),
+        os.path.join(out_dir, "main_ascertainment.png"),
+        os.path.join(out_dir, "main_r0.png"),
+        os.path.join(out_dir, "si_r0_highasc.png"),
+        os.path.join(out_dir, "si_r0_lowuptake.png"),
+        os.path.join(out_dir, "si_r0_2day.png"),
+        os.path.join(out_dir, "si_r0_notest.png"),
+        os.path.join(out_dir, "si_r0-contour-reff.png"),
+        os.path.join(out_dir, "si_r0-contour-ctrl.png"),
+        os.path.join(out_dir, "si_r0-contour-bidir-rel.png"),
+        os.path.join(out_dir, "si_r0-contour-hybrid-rel-reff.png"),
+        os.path.join(out_dir, "si_r0-contour-hybrid-rel-ctrl.png"),
+        os.path.join(out_dir, "si_rel-reff.png"),
+        os.path.join(out_dir, "main_summary.png"),
+        os.path.join(out_dir, "si_summary_highasc.png"),
+        os.path.join(out_dir, "si_summary_lowuptake.png"),
+        os.path.join(out_dir, "si_summary_2day.png"),
+        os.path.join(out_dir, "si_summary_notest.png"),
+        os.path.join(out_dir, "si_summary_r0_20.png"),
+        os.path.join(out_dir, "si_summary_r0_30.png"),
+        os.path.join(out_dir, "si_generation.png"),
+        # TODO: Add asymptomatic SI figures
+        os.path.join(out_dir, "si_environmental.png"),
+        os.path.join(out_dir, "si_overdispersion.png"),
+        os.path.join(out_dir, "si_presymptomatic.png"),
+        os.path.join(out_dir, "si_sensitivity.png"),
+        os.path.join(out_dir, "si_ascertainment.png"),
+        os.path.join(out_dir, "si_isolation.png"),
+
+#==============================================================================
+# STRATEGIES FIGURE
+#==============================================================================
+# Strategies figure and associated supplementary figures
+
+rule main_strategies:
+    """Generate main-text scenario figure."""
+    input:
+        manual = config["data"]["main"]["strategies"]["manual"],
+        digital = config["data"]["main"]["strategies"]["digital"],
+        uptake = config["data"]["main"]["strategies"]["uptake"],
+        window = config["data"]["main"]["strategies"]["window"],
+    output:
+        main = os.path.join(out_dir, "main_strategies.png"),
+        si_ptrace_ctrl = os.path.join(out_dir, "si_strategies-ptrace-ctrl.png"),
+        si_uptake_ctrl = os.path.join(out_dir, "si_strategies-uptake-ctrl.png"),
+        si_uptake_reff = os.path.join(out_dir, "si_strategies-uptake-reff.png"),
+    log: os.path.join(log_dir, "main_strategies.log")
+    conda: env_main
+    params:
+        panel_scale = 13,
+    script: os.path.join(script_dir, "main_strategies.R")
+    # TODO: Switch to low digital uptake as default
+    # TODO: Switch out subfigure e for tracing window plot
+    # TODO: Update SI figures to match above two changes
+
+rule si_strategies_window:
+    """Generate tracing-window contour plots for manual and hybrid tracing."""
+    input:
+        median = config["data"]["si"]["windows"]["median"],
+        optimistic = config["data"]["si"]["windows"]["optimistic"],
+        pessimistic = config["data"]["si"]["windows"]["pessimistic"],
+    output:
+        manual = os.path.join(out_dir, "si_strategies-window-manual.png"),
+        hybrid_reff = os.path.join(out_dir, "si_strategies-window-hybrid-reff.png"),
+        hybrid_ctrl = os.path.join(out_dir, "si_strategies-window-hybrid-ctrl.png"),
+    log: os.path.join(log_dir, "si_strategies_window.log")
+    conda: env_main
+    params:
+        panel_scale = 11,
+    script: os.path.join(script_dir, "si_windows.R")
+
+#==============================================================================
+# ASCERTAINMENT FIGURE
+#==============================================================================
+# Ascertainment & sensitivity figure
+
+rule main_ascsens:
+    """Generate main-text ascertainment & sensitivity figure."""
+    input:
+        ascertainment = config["data"]["main"]["ascsens"]["ascertainment"],
+        sensitivity = config["data"]["main"]["ascsens"]["sensitivity"],
+    output: os.path.join(out_dir, "main_ascsens.png")
+    log: os.path.join(log_dir, "main_ascsens.png")
+    conda: env_main
+    params:
+        panel_scale = 11,
+    script: os.path.join(script_dir, "main_ascsens.R")
+
+#==============================================================================
+# R0 FIGURE
+#==============================================================================
+# R0 figure and associated supplementary figures
+
+rule main_r0:
+    """Generate main-text R0 figure."""
+    input:
+        median = config["data"]["main"]["r0"]["median"],
+        optimistic = config["data"]["main"]["r0"]["optimistic"],
+        pessimistic = config["data"]["main"]["r0"]["pessimistic"],
+    output:
+        main = os.path.join(out_dir, "main_r0.png"),
+        si_ascertainment = os.path.join(out_dir, "si_r0_ascertainment.png"),
+        si_uptake = os.path.join(out_dir, "si_r0_uptake.png"),
+        si_window = os.path.join(out_dir, "si_r0_window.png"),
+        si_test = os.path.join(out_dir, "si_r0_test.png"),
+    log: os.path.join(log_dir, "main_r0.png")
+    conda: env_main
+    params:
+        panel_scale = 9,
+        uptake_main = 0.8,
+        ascertainment_main = 0.5,
+        window_main = 6,
+        trace_neg_main = False,
+        ctrl_upper = False,
+        legend_fill = "#F6F6F6",
+    script: os.path.join(script_dir, "main_r0.R")
+
+#rule si_r0_contour:
+#    """Generate r0/uptake contour plots."""
+#    input: config["data"]["si"]["r0_contour"][...]
+#    output:
+#        reff = os.path.join(out_dir, "si_r0-contour-reff.png"),
+#        ctrl = os.path.join(out_dir, "si_r0-contour-ctrl.png"),
+#        bidir_rel = os.path.join(out_dir, "si_r0-contour-bidir-rel.png"),
+#        hybrid_rel_reff = os.path.join(out_dir, "si_r0-contour-hybrid-rel-reff.png"),
+#        hybrid_rel_ctrl = os.path.join(out_dir, "si_r0-contour-hybrid-rel-ctrl.png"),
+#    log: os.path.join(log_dir, "si_r0_contour.png")
+#    conda: env_main
+#    params:
+#        panel_scale = 11,
+#    script: os.path.join(script_dir, "si_r0-contour.R")
+#
+#rule si_rel_reff:
+#    """Generate relative Reff plots."""
+#    input: ...
+#    output: os.path.join(out_dir, "si_rel-reff.png")
+#    log: os.path.join(log_dir, "si_rel-reff.png")
+#    conda: env_main
+#    params:
+#        panel_scale = 11,
+#    script: os.path.join(script_dir, "si_rel-reff.R")
+
+#==============================================================================
+# SUMMARY FIGURE
+#==============================================================================
+# Summary figure and associated supplementary figures
+
+rule main_summary:
+    """Generate main-text summary figure."""
+    input: 
+        median = config["data"]["main"]["summary"]["median"],
+        optimistic = config["data"]["main"]["summary"]["optimistic"],
+        pessimistic = config["data"]["main"]["summary"]["pessimistic"],
+    output:
+        main = os.path.join(out_dir, "main_summary.png"),
+        si_highasc = os.path.join(out_dir, "si_summary_highasc.png"),
+        si_lowuptake = os.path.join(out_dir, "si_summary_lowuptake.png"),
+        si_2day = os.path.join(out_dir, "si_summary_2day.png"),
+        si_notest = os.path.join(out_dir, "si_summary_notest.png"),
+        si_r0_20 = os.path.join(out_dir, "si_summary_r0_20.png"),
+        si_r0_30 = os.path.join(out_dir, "si_summary_r0_30.png"),
+    log: os.path.join(log_dir, "main_summary.png")
+    conda: env_main
+    params:
+        panel_scale = 11,
+    script: os.path.join(script_dir, "main_summary.R")
+
+#==============================================================================
+# MISC SUPPLEMENTARY FIGURES
+#==============================================================================
+# Supplementary figures that are not tightly linked to a given main-text figure
+
+#rule si_generation:
+#    """Generate SI generation-time figure."""
+#    input: ...
+#    output: os.path.join(out_dir, "si_generation.png")
+#    log: os.path.join(log_dir, "si_generation.log")
+#    conda: env_main
+#    params:
+#        panel_scale = 11,
+#    script: os.path.join(script_dir, "si_generation.R")
+#
+#rule si_asymptomatic:
+#    """Generate asymptomatic (% vs rel. R0) figures."""
+#    input: ...
+#    output:
+#        ...
+#    log: os.path.join(log_dir, "si_asymptomatic.log")
+#    conda: env_main
+#    params:
+#        panel_scale = 11,
+#    script: os.path.join(script_dir, "si_asymptomatic.R")
+
+rule si_univariate:
+    """Generate univariate SI figures."""
+    input:
+        environmental = config["data"]["si"]["univariate"]["environmental"],
+        overdispersion = config["data"]["si"]["univariate"]["overdispersion"],
+        presymptomatic = config["data"]["si"]["univariate"]["presymptomatic"],
+        sensitivity = config["data"]["si"]["univariate"]["sensitivity"],
+        ascertainment = config["data"]["si"]["univariate"]["ascertainment"],
+        isolation = config["data"]["si"]["univariate"]["isolation"],
+    output:
+        environmental = os.path.join(out_dir, "si_environmental.png"),
+        overdispersion = os.path.join(out_dir, "si_overdispersion.png"),
+        presymptomatic = os.path.join(out_dir, "si_presymptomatic.png"),
+        sensitivity = os.path.join(out_dir, "si_sensitivity.png"),
+        ascertainment = os.path.join(out_dir, "si_ascertainment.png"),
+        isolation = os.path.join(out_dir, "si_isolation.png"),
+    log: os.path.join(log_dir, "si_univariate.log")
+    conda: env_main
+    params:
+        panel_scale = 11,
+    script: os.path.join(script_dir, "si_univariate.R")

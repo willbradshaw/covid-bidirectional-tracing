@@ -5,5 +5,8 @@
 results/*
 *.swp
 .snakemake/*
-log_files/*
-output_files/*
+*log_files/*
+*output_files/*
+figures_local/*
+*.Rproj
+*Rplots.pdf

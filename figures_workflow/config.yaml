@@ -1,0 +1,35 @@
+# Config file for BDT figure-making workflow
+
+data:
+    main:
+        strategies:
+            manual: data/main_strategies_manual_1k_scenario.tsv.gz
+            digital: data/main_strategies_digital_1k_scenario.tsv.gz
+            uptake: data/main_strategies_uptake_1k_scenario.tsv.gz
+            window: data/si_window_median_1k_scenario.tsv.gz
+        ascsens:
+            ascertainment: data/main_ascsens_ascertainment_1k_scenario.tsv.gz
+            sensitivity: data/main_ascsens_sensitivity_1k_scenario.tsv.gz
+        r0:
+            median: data/main_r0_median_1k_scenario.tsv.gz
+            optimistic: data/main_r0_optimistic_1k_scenario.tsv.gz
+            pessimistic: data/main_r0_pessimistic_1k_scenario.tsv.gz
+        summary:
+            median: data/main_summary_median_1k_scenario.tsv.gz
+            optimistic: data/main_summary_optimistic_1k_scenario.tsv.gz
+            pessimistic: data/main_summary_pessimistic_1k_scenario.tsv.gz
+    si:
+        windows:
+            median: data/si_window_median_1k_scenario.tsv.gz
+            optimistic: data/si_window_optimistic_1k_scenario.tsv.gz
+            pessimistic: data/si_window_pessimistic_1k_scenario.tsv.gz
+        r0_contour: ... # TODO: Work out what files we want here
+        rel_ref: ... # And here
+        asymptomatic: ...
+        univariate:
+            environmental: data/si_univariate_environmental_500_scenario.tsv.gz
+            overdispersion: data/si_univariate_environmental_500_scenario.tsv.gz
+            presymptomatic: data/si_univariate_environmental_500_scenario.tsv.gz
+            sensitivity: data/si_univariate_environmental_500_scenario.tsv.gz
+            ascertainment: data/si_univariate_environmental_500_scenario.tsv.gz
+            isolation: data/si_univariate_environmental_500_scenario.tsv.gz
