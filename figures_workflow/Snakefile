@@ -52,7 +52,7 @@ rule all:
 #        os.path.join(out_dir, "si_summary_notest.png"),
 #        os.path.join(out_dir, "si_summary_r0_20.png"),
 #        os.path.join(out_dir, "si_summary_r0_30.png"),
-#        os.path.join(out_dir, "si_generation.png"),
+        os.path.join(out_dir, "si_generation.png"),
 #        # TODO: Add asymptomatic SI figures
 #        os.path.join(out_dir, "si_environmental.png"),
 #        os.path.join(out_dir, "si_overdispersion.png"),
@@ -173,16 +173,6 @@ rule main_r0:
 #    params:
 #        panel_scale = 11,
 #    script: os.path.join(script_dir, "si_r0-contour.R")
-#
-#rule si_rel_reff:
-#    """Generate relative Reff plots."""
-#    input: ...
-#    output: os.path.join(out_dir, "si_rel-reff.png")
-#    log: os.path.join(log_dir, "si_rel-reff.png")
-#    conda: env_main
-#    params:
-#        panel_scale = 11,
-#    script: os.path.join(script_dir, "si_rel-reff.R")
 
 rule si_rel_reff:
     """Generate relative Reff plots."""
@@ -232,16 +222,16 @@ rule main_summary:
 #==============================================================================
 # Supplementary figures that are not tightly linked to a given main-text figure
 
-#rule si_generation:
-#    """Generate SI generation-time figure."""
-#    input: ...
-#    output: os.path.join(out_dir, "si_generation.png")
-#    log: os.path.join(log_dir, "si_generation.log")
-#    conda: env_main
-#    params:
-#        panel_scale = 11,
-#    script: os.path.join(script_dir, "si_generation.R")
-#
+rule si_generation:
+    """Generate SI generation-time figure."""
+    output: os.path.join(out_dir, "si_generation.png")
+    log: os.path.join(log_dir, "si_generation.log")
+    conda: env_main
+    params:
+        panel_scale = 9,
+        simul_nrep = 1000000,
+    script: os.path.join(script_dir, "si_generation.R")
+
 #rule si_asymptomatic:
 #    """Generate asymptomatic (% vs rel. R0) figures."""
 #    input: ...
