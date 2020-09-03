@@ -32,6 +32,8 @@ rule all:
         os.path.join(out_dir, "si_strategies-window-hybrid.png"),
         # Main-text ascertainment/sensitivity figure (+ associated SI)
         os.path.join(out_dir, "main_ascsens.png"),
+        os.path.join(out_dir, "si_ascsens_contour_abs.png"),
+        os.path.join(out_dir, "si_ascsens_contour_rel.png"),
         # TODO: Add ascertainment/sensitivity contour plot
         # Main-text R0 figure (+ associated SI)
         os.path.join(out_dir, "main_r0.png"),
@@ -118,17 +120,17 @@ rule main_ascsens:
         legend_fill = "#F6F6F6",
     script: os.path.join(script_dir, "main_ascsens.R")
 
-#rule main_ascsens_contour:
-#    """Generate ascertainment/sensitivity contour plots."""
-#    input:
-#        ascertainment = config["data"]["main"]["ascsens"]["ascertainment"],
-#        sensitivity = config["data"]["main"]["ascsens"]["sensitivity"],
-#    output: os.path.join(out_dir, "main_ascsens.png")
-#    log: os.path.join(log_dir, "main_ascsens.png")
-#    conda: env_main
-#    params:
-#        panel_scale = 11,
-#    script: os.path.join(script_dir, "main_ascsens.R")
+rule si_ascsens_contour:
+    """Generate ascertainment/sensitivity contour plots."""
+    input: config["data"]["si"]["ascsens_contour"]
+    output:
+        abs = os.path.join(out_dir, "si_ascsens_contour_abs.png"),
+        rel = os.path.join(out_dir, "si_ascsens_contour_rel.png"),
+    log: os.path.join(log_dir, "si_ascsens_contour.png")
+    conda: env_main
+    params:
+        panel_scale = 9,
+    script: os.path.join(script_dir, "si_ascsens_contour.R")
 
 #==============================================================================
 # R0 FIGURE

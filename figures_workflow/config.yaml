@@ -23,7 +23,8 @@ data:
             median: data/si_window_median_1k_scenario.tsv.gz
             optimistic: data/si_window_optimistic_1k_scenario.tsv.gz
             pessimistic: data/si_window_pessimistic_1k_scenario.tsv.gz
-        r0_contour: ... # TODO: Work out what files we want here
+        ascsens_contour: data/si_ascsens_contour_1k_scenario.tsv.gz
+        r0_contour: 
         rel_ref: ... # And here
         asymptomatic: ...
         univariate:
