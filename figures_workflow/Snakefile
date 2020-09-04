@@ -34,7 +34,6 @@ rule all:
         os.path.join(out_dir, "main_ascsens.png"),
         os.path.join(out_dir, "si_ascsens_contour_abs.png"),
         os.path.join(out_dir, "si_ascsens_contour_rel.png"),
-        # TODO: Add ascertainment/sensitivity contour plot
         # Main-text R0 figure (+ associated SI)
         os.path.join(out_dir, "main_r0.png"),
         os.path.join(out_dir, "si_r0_ascertainment.png"),
@@ -48,6 +47,10 @@ rule all:
         os.path.join(out_dir, "si_r0-contour-bidir-ctrl.png"),
         os.path.join(out_dir, "si_r0-contour-hybrid-reff.png"),
         os.path.join(out_dir, "si_r0-contour-hybrid-ctrl.png"),
+        # Main-text summary figure (+ associated SI)
+        os.path.join(out_dir, "main_summary.png"),
+        os.path.join(out_dir, "si_summary_highasc.png"),
+        os.path.join(out_dir, "si_summary_notest.png"),
 #        os.path.join(out_dir, "si_r0-contour-reff.png"),
 #        os.path.join(out_dir, "si_r0-contour-ctrl.png"),
 #        os.path.join(out_dir, "si_r0-contour-bidir-rel.png"),
@@ -212,22 +215,21 @@ rule si_rel_reff:
 
 rule main_summary:
     """Generate main-text summary figure."""
-    input: 
+    input:
         median = config["data"]["main"]["summary"]["median"],
         optimistic = config["data"]["main"]["summary"]["optimistic"],
         pessimistic = config["data"]["main"]["summary"]["pessimistic"],
     output:
         main = os.path.join(out_dir, "main_summary.png"),
-        si_highasc = os.path.join(out_dir, "si_summary_highasc.png"),
-        si_lowuptake = os.path.join(out_dir, "si_summary_lowuptake.png"),
-        si_2day = os.path.join(out_dir, "si_summary_2day.png"),
-        si_notest = os.path.join(out_dir, "si_summary_notest.png"),
-        si_r0_20 = os.path.join(out_dir, "si_summary_r0_20.png"),
-        si_r0_30 = os.path.join(out_dir, "si_summary_r0_30.png"),
+        si_ascertainment = os.path.join(out_dir, "si_summary_highasc.png"),
+        si_test = os.path.join(out_dir, "si_summary_notest.png"),
     log: os.path.join(log_dir, "main_summary.png")
     conda: env_main
     params:
-        panel_scale = 11,
+        panel_scale = 7,
+        ascertainment_main = 0.5,
+        trace_neg_main = False,
+        legend_fill = "#F6F6F6",
     script: os.path.join(script_dir, "main_summary.R")
 
 #==============================================================================

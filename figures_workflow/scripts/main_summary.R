@@ -2,9 +2,9 @@
 # Preamble
 #==============================================================================
 
-# logfile <- file(snakemake@log[[1]], open = "wt")
-# sink(logfile ,type = "output")
-# sink(logfile, type = "message")
+logfile <- file(snakemake@log[[1]], open = "wt")
+sink(logfile ,type = "output")
+sink(logfile, type = "message")
 
 cat("Preparing to run script...")
 
@@ -12,14 +12,14 @@ cat("Preparing to run script...")
 source("scripts/aux_format-plots.R")
 
 # Specify parameters
-# ascertainment_main <- snakemake@params[["ascertainment_main"]]
-# trace_neg_main <- snakemake@params[["trace_neg_main"]]
-# legend_fill <- snakemake@params[["legend_fill"]]
-# plot_scale_cm <- snakemake@params[["panel_scale"]]
-ascertainment_main <- 0.5
-trace_neg_main <- FALSE
-legend_fill <- "#F6F6F6"
-plot_scale_cm <- 7
+ascertainment_main <- snakemake@params[["ascertainment_main"]]
+trace_neg_main <- snakemake@params[["trace_neg_main"]]
+legend_fill <- snakemake@params[["legend_fill"]]
+plot_scale_cm <- snakemake@params[["panel_scale"]]
+# ascertainment_main <- 0.5
+# trace_neg_main <- FALSE
+# legend_fill <- "#F6F6F6"
+# plot_scale_cm <- 7
 
 plot_scale_in <- plot_scale_cm/2.54
 uptake_high <- 0.8
@@ -31,22 +31,20 @@ aspect_default <- 1/1.5
 blab_label_default <- "‡"
 
 # Specify input paths
-# optim_path <- snakemake@input[["optimistic"]]
-# pessim_path <- snakemake@input[["pessimistic"]]
-# median_path <- snakemake@input[["median"]]
-optim_path <- "data/main_summary_optimistic_1k_scenario.tsv.gz"
-pessim_path <- "data/main_summary_pessimistic_1k_scenario.tsv.gz"
-median_path <- "data/main_summary_median_1k_scenario.tsv.gz"
+optim_path <- snakemake@input[["optimistic"]]
+pessim_path <- snakemake@input[["pessimistic"]]
+median_path <- snakemake@input[["median"]]
+# optim_path <- "data/main_summary_optimistic_1k_scenario.tsv.gz"
+# pessim_path <- "data/main_summary_pessimistic_1k_scenario.tsv.gz"
+# median_path <- "data/main_summary_median_1k_scenario.tsv.gz"
 
 # Specify output paths
-#main_path <- snakemake@output[["main"]]
-# r0_20_path <- snakemake@output[["r0_20_path"]]
-# r0_30_path <- snakemake@output[["r0_30_path"]]
-#ascertainment_path <- snakemake@output[["si_ascertainment"]]
-#test_path <- snakemake@output[["si_test"]]
-main_path <- "output_files/dev_main_summary.png"
-ascertainment_path <- "output_files/dev_si_summary_ascertainment.png"
-test_path <- "output_files/dev_si_summary_test.png"
+main_path <- snakemake@output[["main"]]
+ascertainment_path <- snakemake@output[["si_ascertainment"]]
+test_path <- snakemake@output[["si_test"]]
+# main_path <- "output_files/dev_main_summary.png"
+# ascertainment_path <- "output_files/dev_si_summary_ascertainment.png"
+# test_path <- "output_files/dev_si_summary_test.png"
 
 # Modify theme
 theme_base <- theme_base + theme(
