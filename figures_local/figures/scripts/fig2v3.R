@@ -1,26 +1,28 @@
 library(tidyverse)
 library(cowplot)
-library(metR)
-library(reshape2)
-library(scales)
-library(viridis)
 
 #==============================================================================
 # Read in data
 #==============================================================================
 
 # Universal coverage
-univ_path <- "figures/data/fig2_univ_env_1k_scenario.tsv.gz"
+
+univ_path <- "figure_data/fig2/fig2_univ_env_1k_scenario.tsv.gz"
 univ_data <- suppressMessages(read_tsv(univ_path)) %>%
   filter(generation_alpha == 0.064)
 
-# Contour plots
-contour_path <- "figures/data/fig2_contour_1k_scenario.tsv.gz"
-contour_data <- suppressMessages(read_tsv(contour_path)) %>% 
+# Data sharing
+sharing_path <- "figure_data/fig2/sharing_1k_scenario.tsv.gz"
+sharing_data <- suppressMessages(read_tsv(sharing_path)) %>%
+  filter(generation_alpha == 0.064)
+
+# Smartphone usage
+phone_path <- "figure_data/fig2/smartphones_1k_scenario.tsv.gz"
+phone_data <- suppressMessages(read_tsv(phone_path)) %>%
   filter(generation_alpha == 0.064)
 
 # Manual tracing (with and without automated)
-manual_path <- "figures/data/fig2_manual_equiv_1000_scenario.tsv.gz"
+manual_path <- "figure_data/fig2/fig2_manual_equiv_1000_scenario.tsv.gz"
 manual_data <- suppressMessages(read_tsv(manual_path)) %>%
   filter(generation_alpha == 0.064)
 
@@ -78,8 +80,7 @@ theme_base <-   theme_bw() + theme(
 
 label_backtrace <- function(x){
   ifelse(x==0, "Forward tracing only",
-         "Bidirectional tracing")
-  # "Forward and reverse\ntracing")
+         "Forward and reverse\ntracing")
 }
 
 label_limits <- function(x){
@@ -222,121 +223,78 @@ show_assumption <- function(plot, line_x, lab_x, lab_y,
   return(plot_out)
 }
 
-contour_palette_viridis <- tibble(level = seq(0,1,0.1), colour = viridis(11))
-contour_palette_bidir   <- tibble(level = seq(0,1,0.1), 
-                                              colour = scales::seq_gradient_pal(low="white", high="#d95f02", "Lab")(seq(0,1,length.out=11)))
-contour_palette_fwd   <- tibble(level = seq(0,1,0.1), 
-                                  colour = scales::seq_gradient_pal(low="white", high="#1b9e77", "Lab")(seq(0,1,length.out=11)))
-
-contour_plot <- function(data, inc_manual, bt_dist,
-                         palette_tib = contour_palette_bidir){
-  # Prepare data
-  data_filtered <- data %>% filter((p_traced_manual != 0) == inc_manual,
-                                   backtrace_distance == bt_dist)
-  data_indexed <- data_filtered %>%
-    group_by(p_smartphone_overall) %>% arrange(p_smartphone_overall) %>% 
-    mutate(index_smartphone = group_indices()) %>%
-    group_by(p_data_sharing_auto) %>% arrange(p_data_sharing_auto) %>% 
-    mutate(index_sharing = group_indices())
-  # Smooth data
-  smoothed_control <- sapply(1:max(data_indexed$index_smartphone), function(p)
-    sapply(1:max(data_indexed$index_sharing), function(s)
-      data_indexed %>% filter(abs(index_smartphone-p) <= 1,
-                              abs(index_sharing-s) <= 1) %>% 
-        pull(p_controlled) %>% mean)) %>%
-    melt() %>% as_tibble %>%
-    rename(index_smartphone = Var2, index_sharing = Var1, p_controlled_smoothed = value)
-  data_smoothed <- inner_join(data_indexed, smoothed_control, 
-                              by=c("index_sharing", "index_smartphone"))
-  # Prepare palette
-  min_level <- data_smoothed %>% pull(p_controlled_smoothed) %>% 
-    (function(x) floor(x*10)/10) %>% min
-  palette <- palette_tib %>% filter(level >= min_level) %>% pull(colour)
-  # Make plot
-  g <- ggplot(data_smoothed, aes(x=p_smartphone_overall, y=p_data_sharing_auto,
-                                 z = round(p_controlled_smoothed*100))) +
-    geom_contour_filled(colour="black", breaks=seq(0,100,10)) +
-    geom_text_contour(colour="black", stroke=0.2, breaks=seq(0,100,10),
-                      check_overlap = TRUE) +
-    scale_x_continuous(name = "% of cases with\nchirping smartphones",
-                       breaks = seq(0,1,0.2), labels = function(x) round(x*100)) +
-    scale_y_continuous(name = "% of cases sharing data", breaks = seq(0,1,0.2),
-                       labels = function(x) round(x*100)) +
-    scale_fill_manual(values = palette) +
-    coord_fixed() +
-    theme_base + theme(legend.position = "none")
-  return(g)
-}
-
-
 #------------------------------------------------------------------------------
 # Subfigure plots
 #------------------------------------------------------------------------------
 
 # Universal coverage
 univ_plot <- (univ_data %>%
-                control_plot("p_traced_auto", "Probability of trace\nsuccess (%)",
+                control_plot("p_traced_auto", "% of non-environmental\ncontacts traced",
                              seq(0,1,0.2), label_pc, "contact_limit_auto",
                              c(Inf, 2), label_limits) +
-                ggtitle("Digital tracing only\n(universal coverage)"))
+                ggtitle("Digital tracing only\n(universal coverage)")) %>%
+  show_assumption(0.9, 0.88, 0.01)
 
-# Contour plot (digital)
-contour_plot_digital_raw <- contour_data %>% 
-  filter(contact_limit_manual == 7) %>% 
-  contour_plot(FALSE, Inf) +
-  ggtitle("Bidirectional digital\ntracing (partial coverage)")
-contour_plot_digital <- contour_plot_digital_raw +
-  annotate("text", x=0.02,y=0.035,label="(% outbreaks controlled, given\n90% prob. of trace success)",
-           hjust=0, vjust=0, size=3.9, colour = "#d95f02")
+# Data sharing
+sharing_plot <- (sharing_data %>%
+  control_plot("p_data_sharing_auto",
+               "% of cases sharing data", seq(0,1,0.2), label_pc,
+               legend_pos = c(0.05, 0.85)) +
+  ggtitle("Digital tracing only\n(partial data sharing)")) %>%
+  show_assumption(0.9, 0.88, 0.01)
+
+# Smartphone coverage
+phone_plot <- (phone_data %>%
+  control_plot("p_smartphone_overall",
+               "% of cases with chirping\nsmartphones",
+               seq(0,1,0.2), label_pc, legend_pos = c(0.05, 0.85)) +
+  ggtitle("Digital tracing only\n(partial smartphone usage)")) %>%
+  show_assumption(0.8, 0.78, 0.01)
 
 # Manual tracing only
 manual_plot <- manual_data %>% filter(p_traced_auto == 0) %>%
-  control_plot("p_traced_manual", "Probability of trace\nsuccess (%)",
+  control_plot("p_traced_manual", "% of non-environmental\ncontacts traced",
                seq(0,1,0.2), label_pc, "contact_limit_manual",
-               c(7,2), label_limits_manual) +
-  ggtitle("Manual tracing only")
+               c(2, 7), label_limits_manual) +
+  ggtitle("Manual tracing\nonly")
 
 # Combined tracing
 combo_plot <- manual_data %>% filter(p_traced_auto < 0) %>%
-  control_plot("p_traced_manual", "Probability of trace\nsuccess (%)",
+  control_plot("p_traced_manual", "% of non-environmental\ncontacts traced",
                seq(0,1,0.2), label_pc, "contact_limit_manual",
-               c(7,2), label_limits_manual) +
-  ggtitle("Manual + digital\n(hybrid) tracing")
+               c(2, 7), label_limits_manual) +
+  ggtitle("Manual + digital\ntracing")
   
+
 # R_eff plot
 reff_plot <- manual_data %>% 
   mutate(trace_type = ifelse(p_traced_auto == 0, "Manual tracing only",
                              "Manual + digital")) %>%
   filter(backtrace_distance == Inf) %>%
-  r_eff_plot("p_traced_manual", "Probability of trace\nsuccess (%)", seq(0,1,0.2),
+  r_eff_plot("p_traced_manual", "% of non-environmental\ncontacts traced", seq(0,1,0.2),
              label_pc, "trace_type", c("Manual tracing only", "Manual + digital"),
-             function(x) x, "contact_limit_manual", c(2,7), label_limits_manual,
-             y_title_short = FALSE) +
-  ggtitle(expression(bold(atop("Effect on"~R[eff],"(bidirectional tracing)"))))
-
-# Contour plot (combined)
-contour_plot_combo_raw <- contour_data %>% 
-  filter(contact_limit_manual == 7) %>%
-  contour_plot(TRUE, Inf) +
-  ggtitle("Bidirectional hybrid\ntracing (partial coverage)")
-contour_plot_combo <- contour_plot_combo_raw +
-  annotate("text", x=0.02,y=0.035,label="(% outbreaks controlled, given\n90% prob. of trace success)",
-           hjust=0, vjust=0, size=3.9, colour = "#d95f02")
-
+             function(x) x, "contact_limit_manual", c(2,7), label_limits_manual) +
+  ggtitle(expression(bold(atop("Effect on"~R[eff],"(forward + reverse tracing)"))))
 
 # Combine together
-fig2 <- plot_grid(manual_plot, univ_plot, contour_plot_digital,
-                  combo_plot, reff_plot, contour_plot_combo,
-                  labels = "auto", nrow = 2, ncol = 3, align = "hv",
-                  axis = "l", label_size = fontsize_base * fontscale_label,
-                  label_fontfamily = titlefont, label_colour = "black")
+fig2_v1 <- plot_grid(univ_plot, sharing_plot, phone_plot,
+                         manual_plot, combo_plot, reff_plot,
+                         labels = "auto", nrow = 2, ncol = 3, align = "hv",
+                         axis = "l", label_size = fontsize_base * fontscale_label,
+                         label_fontfamily = titlefont, label_colour = "black")
+
+fig2_v2 <- plot_grid(manual_plot, univ_plot, sharing_plot, 
+                         phone_plot, combo_plot, reff_plot,
+                         labels = "auto", nrow = 3, ncol = 2, align = "hv",
+                         axis = "l", label_size = fontsize_base * fontscale_label,
+                         label_fontfamily = titlefont, label_colour = "black")
 
 # R_eff plot for forward-only tracing (SI)
 reff_plot_fwd <- manual_data %>% 
   mutate(trace_type = ifelse(p_traced_auto == 0, "Manual tracing only",
                              "Manual + digital")) %>%
   filter(backtrace_distance == 0) %>%
-  r_eff_plot("p_traced_manual", "Probability of trace\nsuccess (%)", seq(0,1,0.2),
+  r_eff_plot("p_traced_manual", "% of non-environmental\ncontacts traced", seq(0,1,0.2),
              label_pc, "trace_type", c("Manual tracing only", "Manual + digital"),
              function(x) x, "contact_limit_manual", c(2,7), label_limits_manual) +
   ggtitle(expression(bold(atop("Effect on"~R[eff],"(forward tracing only)"))))
@@ -347,15 +305,16 @@ reff_plot_fwd <- manual_data %>%
 #==============================================================================
 
 save_fig <- function(path_prefix, path_suffix, plot, plot_scale,
-                     plot_ratio, device="png"){
+                     plot_ratio){
   ggsave(filename=paste0(path_prefix, path_suffix), plot = plot,
-         device = device, width = plot_scale * plot_ratio,
+         device = "png", width = plot_scale * plot_ratio,
          height = plot_scale, units = "cm", dpi = 320, limitsize=FALSE)
 }
 
-path_prefix <- "figures/img/fig2"
+path_prefix <- "figures/fig2/fig2"
 
 # 48% pre-symptomatic
-row_height <- 13
-save_fig(path_prefix, ".svg", fig2, row_height*2, 3/2 * 0.8, device="svg")
-save_fig(path_prefix, ".png", fig2, row_height*2, 3/2 * 0.8, device="png")
+row_height <- 14
+save_fig(path_prefix, "v1.png", fig2_v1, row_height*2, 3/2 * 0.8)
+save_fig(path_prefix, "v2.png", fig2_v2, row_height*3, 2/3 * 0.8)
+save_fig("figures/si/reff_fwd", ".png", reff_plot_fwd, row_height, 0.8)

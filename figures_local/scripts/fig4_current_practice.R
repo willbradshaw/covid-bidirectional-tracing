@@ -123,12 +123,12 @@ label_levels <- c("No tracing", "Manual, 2-day",
                   "Hybrid, high-uptake, 7-day")
 
 blab_size = 6
-blab_buffer_ctrl = 0.1
+blab_buffer_ctrl = 0.05
 blab_buffer_reff = 0.17
 blab_col = "#377eb8"
 blab_annot = "‡"
 
-make_barplot_fig4_base <- function(g, data, coord_ratio, y_ref = "p_controlled",
+make_barplot_fig4_base <- function(g, data, coord_ratio, y_ref = "p_controlled_upper",
                                    baseline_lab_size = blab_size, 
                                    baseline_lab_buffer = blab_buffer_ctrl,
                                    baseline_lab_col = blab_col,
@@ -151,7 +151,7 @@ make_barplot_fig4_base <- function(g, data, coord_ratio, y_ref = "p_controlled",
       axis.title.x = element_blank(),
       legend.position = "bottom",
       legend.margin = margin(t=0.7, unit="cm"),
-      strip.text = element_text(face = "bold"),
+      strip.text = element_text(face = "bold", size = fontsize_base * fontscale_title),
     )
   return(g)
 }
@@ -169,7 +169,7 @@ make_barplot_fig4_ctrl <- function(data, err_width = 0.2, bar_width=0.6,
     geom_errorbar(width=err_width, position = position_dodge(width=bar_width)) + 
     scale_y_continuous(name = "% of outbreaks controlled", limits = c(0,1),
                        breaks = seq(0,1,0.2), labels = function(x) round(x*100))
-  h <- make_barplot_fig4_base(g, data, coord_ratio, "p_controlled", baseline_lab_size,
+  h <- make_barplot_fig4_base(g, data, coord_ratio, "p_controlled_upper", baseline_lab_size,
                               baseline_lab_buffer, baseline_lab_col, baseline_lab_annot)
   return(h)
 }
@@ -178,7 +178,7 @@ make_barplot_fig4_reff <- function(data, r0=2.5, bar_width=0.6,
                                    legend_pos = c(0,1), legend_vspace=0,
                                    coord_ratio = 6/2.5,
                                    r0_lab_x = 8.5, r0_lab_ydiff = 0.15,
-                                   r0_lab_size = 4.6, 
+                                   r0_lab_size = 4.6, ylim_diff = 0.05,
                                    baseline_lab_size = blab_size, 
                                    baseline_lab_buffer = blab_buffer_reff,
                                    baseline_lab_col = blab_col,
@@ -191,8 +191,8 @@ make_barplot_fig4_reff <- function(data, r0=2.5, bar_width=0.6,
                colour = "red") +
     annotate("text", x=r0_lab_x, y=r0-r0_lab_ydiff, hjust=0.5, vjust = 0.5,
              colour = "red", size=r0_lab_size, label=expression(R[0])) +
-    scale_y_continuous(name = "Average effective\nreproduction number",
-                       limits = c(0,r0 + 0.05),
+    scale_y_continuous(name = "Mean effective\nreproduction number",
+                       limits = c(0,r0 + ylim_diff),
                        breaks = seq(0,4,0.5))
   h <- make_barplot_fig4_base(g, data, coord_ratio, "effective_r0_mean", 
                               baseline_lab_size,
@@ -201,39 +201,85 @@ make_barplot_fig4_reff <- function(data, r0=2.5, bar_width=0.6,
   return(h)
 }
 
+make_barplot_fig4_grid <- function(data, err_width = 0.2, bar_width=0.6,
+                              coord_ratio = 6, ylim_diff = 0.05,
+                              baseline_lab_size = blab_size, 
+                              baseline_lab_buffer_ctrl = blab_buffer_ctrl,
+                              baseline_lab_buffer_reff = blab_buffer_reff,
+                              baseline_lab_col = blab_col,
+                              baseline_lab_annot = blab_annot, r0 = 2.5,
+                              r0_lab_x = 8.5, r0_lab_ydiff = 0.15,
+                              r0_lab_size = 4.6, squash = TRUE){
+  ctrl_plot <- make_barplot_fig4_ctrl(data, err_width = err_width,
+                                      bar_width=bar_width, coord_ratio=coord_ratio,
+                                      baseline_lab_size = baseline_lab_size,
+                                      baseline_lab_buffer = baseline_lab_buffer_ctrl,
+                                      baseline_lab_col = baseline_lab_col,
+                                      baseline_lab_annot = baseline_lab_annot)
+  reff_plot <- make_barplot_fig4_reff(data, r0 = r0, ylim_diff = ylim_diff,
+                                      bar_width=bar_width, coord_ratio=coord_ratio/r0,
+                                      r0_lab_x = r0_lab_x, r0_lab_ydiff = r0_lab_ydiff,
+                                      r0_lab_size = r0_lab_size,
+                                      baseline_lab_size = baseline_lab_size,
+                                      baseline_lab_buffer = baseline_lab_buffer_reff,
+                                      baseline_lab_col = baseline_lab_col,
+                                      baseline_lab_annot = baseline_lab_annot)
+  if (squash){
+    ctrl_plot <- ctrl_plot + theme(
+      legend.position = "none",
+      axis.text.x = element_blank()
+    )
+    reff_plot <- reff_plot + theme(
+      strip.text.y = element_blank(),
+      strip.text.x = element_blank(),
+    )
+    grid_plot <- plot_grid(ctrl_plot, reff_plot,
+                           nrow = 2, ncol = 1, align = "hv",
+                           axis = "l", rel_heights = c(1,2))
+  } else {
+    rel_heights <- c(1,1)
+    grid_plot <- plot_grid(ctrl_plot, reff_plot,
+                           labels = "auto", nrow = 2, ncol = 1, align = "hv",
+                           axis = "l", label_size = fontsize_base * fontscale_label,
+                           label_fontfamily = titlefont, label_colour = "black",
+                           rel_heights = rel_heights
+    )
+  }
+  return(grid_plot)
+}
+
 #==============================================================================
 # Make plots
 #==============================================================================
 
 # R0 2.5, 90% contacts traced, trace before testing
-ctrl_090_pre_r025 <- make_barplot_fig4_ctrl(comb_data_090_pre_r025)
-reff_090_pre_r025 <- make_barplot_fig4_reff(comb_data_090_pre_r025)
-
-# R0 2.0, 90% contacts traced, trace before testing
-ctrl_090_pre_r020 <- make_barplot_fig4_ctrl(comb_data_090_pre_r020)
-reff_090_pre_r020 <- make_barplot_fig4_reff(comb_data_090_pre_r020)
+grid_090_pre_r025 <- make_barplot_fig4_grid(comb_data_090_pre_r025)
 
 # R0 3.0, 90% contacts traced, trace before testing
-ctrl_090_pre_r030 <- make_barplot_fig4_ctrl(comb_data_090_pre_r030)
-reff_090_pre_r030 <- make_barplot_fig4_reff(comb_data_090_pre_r030)
+grid_090_pre_r030 <- make_barplot_fig4_grid(comb_data_090_pre_r030,
+                                            squash = FALSE, r0 = 3.0)
+
+# R0 2.0, 90% contacts traced, trace before testing
+grid_090_pre_r020 <- make_barplot_fig4_grid(comb_data_090_pre_r020,
+                                            squash = FALSE, r0 = 2.0)
 
 # R0 2.5, 80% contacts traced, trace before testing
-ctrl_080_pre_r025 <- make_barplot_fig4_ctrl(comb_data_080_pre_r025)
-reff_080_pre_r025 <- make_barplot_fig4_reff(comb_data_080_pre_r025)
+grid_080_pre_r025 <- make_barplot_fig4_grid(comb_data_080_pre_r025,
+                                            squash = FALSE)
 
 # R0 2.5, 90% contacts traced, trace after testing
-ctrl_090_post_r025 <- make_barplot_fig4_ctrl(comb_data_090_post_r025)
-reff_090_post_r025 <- make_barplot_fig4_reff(comb_data_090_post_r025)
+grid_090_post_r025 <- make_barplot_fig4_grid(comb_data_090_post_r025,
+                                             squash = FALSE)
 
 #==============================================================================
 # Save outputs
 #==============================================================================
 
 save_fig <- function(path_prefix, path_suffix, plot, 
-                     plot_scale = 18,
-                     plot_ratio = 3 * 0.7,
+                     plot_scale = 34,
+                     plot_ratio = 1,
                      device="png"){
-  ggsave(filename=paste0(path_prefix, path_suffix), plot = plot,
+  ggsave(filename=paste0(path_prefix, path_suffix, ".", device), plot = plot,
          device = device, width = plot_scale * plot_ratio,
          height = plot_scale, units = "cm", dpi = 320, limitsize=FALSE)
 }
@@ -241,16 +287,17 @@ save_fig <- function(path_prefix, path_suffix, plot,
 # Main figure (R0 = 2.5 only)
 path_prefix <- "figures_local/img/"
 path_prefix_main <- paste0(path_prefix, "fig4_090_pre_r025")
-save_fig(path_prefix_main, "_ctrl.png", ctrl_090_pre_r025)
-save_fig(path_prefix_main, "_ctrl.svg", ctrl_090_pre_r025, device="svg")
+save_fig(path_prefix_main, "", grid_090_pre_r025, device = "svg")
 
-# SI figures
-save_fig(path_prefix_main, "_reff.png", reff_090_pre_r025)
-save_fig(path_prefix, "fig4_090_pre_020_ctrl.png", ctrl_090_pre_r020)
-save_fig(path_prefix, "fig4_090_pre_020_reff.png", reff_090_pre_r020)
-save_fig(path_prefix, "fig4_090_pre_030_ctrl.png", ctrl_090_pre_r030)
-save_fig(path_prefix, "fig4_090_pre_030_reff.png", reff_090_pre_r030)
-save_fig(path_prefix, "fig4_080_pre_025_ctrl.png", ctrl_080_pre_r025)
-save_fig(path_prefix, "fig4_080_pre_025_reff.png", reff_080_pre_r025)
-save_fig(path_prefix, "fig4_090_post_025_ctrl.png", ctrl_090_post_r025)
-save_fig(path_prefix, "fig4_090_post_025_reff.png", reff_090_post_r025)
+# Supplementary variants
+save_fig(path_prefix, "fig4_090_pre_030", grid_090_pre_r030)
+save_fig(path_prefix, "fig4_090_pre_020", grid_090_pre_r020)
+save_fig(path_prefix, "fig4_080_pre_025", grid_080_pre_r025)
+save_fig(path_prefix, "fig4_090_post_025", grid_090_post_r025)
+
+save_fig(path_prefix, "fig4_090_pre_030", grid_090_pre_r030, device="svg")
+save_fig(path_prefix, "fig4_090_pre_020", grid_090_pre_r020, device="svg")
+
+
+
+

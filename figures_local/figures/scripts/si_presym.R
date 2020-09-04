@@ -5,7 +5,7 @@ library(cowplot)
 # Read in data
 #==============================================================================
 
-data_path <- "figures_local/data/si_presym_500_scenario.tsv.gz"
+data_path <- "figure_data/si/fig3_presym_500_scenario.tsv.gz"
 data <- suppressMessages(read_tsv(data_path))
 
 #==============================================================================
@@ -29,8 +29,7 @@ data_processed <- data %>%
                              ifelse(p_traced_manual == 0, "No tracing", "Manual only"),
                              ifelse(p_traced_manual == 0, "Digital only", 
                                     "Manual + digital")),
-         p_presymptomatic = alpha_to_presym(generation_alpha),
-         backtrace_distance = factor(backtrace_distance, levels = c(Inf,0)))
+         p_presymptomatic = alpha_to_presym(generation_alpha))
 
 #==============================================================================
 # Specify plotting theme information
@@ -86,7 +85,7 @@ theme_base <-   theme_bw() + theme(
 
 label_backtrace <- function(x){
   ifelse(x==0, "Forward only",
-         "Bidirectional")
+         "Forward and reverse")
 }
 
 label_limits <- function(x){
@@ -130,8 +129,7 @@ control_plot_90 <- data_processed %>%
   geom_line() + geom_point(size=2) +
   scale_y_continuous(name = "% of outbreaks controlled", limits = c(0,1),
                      breaks = seq(0,1,0.2), labels = function(x) round(x*100)) +
-  scale_x_continuous(name = "% presymptomatic transmission",
-                     labels = label_pc) +
+  scale_x_continuous(name = "% presymptomatic transmission") +
   scale_colour_brewer(type = "div", palette = "Set1", name="Trace type") +
   scale_linetype_discrete(name=NULL, labels=label_backtrace) +
   scale_shape_discrete(name=NULL, labels=label_backtrace) +
@@ -139,7 +137,7 @@ control_plot_90 <- data_processed %>%
          linetype=guide_legend(nrow=2, order=2),
          shape=guide_legend(nrow=2, order=2)
   ) +
-  coord_fixed(ratio=0.9*0.7) +
+  coord_fixed(ratio=0.9) +
   theme_base
 
 
@@ -155,8 +153,7 @@ r_eff_plot_90 <- data_processed %>%
   geom_hline(yintercept=1, linetype="dotted", size=1) +
   scale_y_continuous(name = "Avg effective reprod. number",
                      limits=c(0,NA), breaks = seq(0,10,0.5)) +
-  scale_x_continuous(name = "% presymptomatic transmission",
-                     labels = label_pc) +
+  scale_x_continuous(name = "% presymptomatic transmission") +
   scale_colour_brewer(type = "div", palette = "Set1", name="Trace type") +
   scale_linetype_discrete(name=NULL, labels=label_backtrace) +
   scale_shape_discrete(name=NULL, labels=label_backtrace) +
@@ -164,19 +161,13 @@ r_eff_plot_90 <- data_processed %>%
          linetype=guide_legend(nrow=2, order=2),
          shape=guide_legend(nrow=2, order=2)
   ) +
-  coord_fixed(ratio=0.3*0.7) +
+  coord_fixed(ratio=0.3) +
   theme_base
 
-grid_plot_90 <- plot_grid(control_plot_90 + theme(legend.position = "none"),
-                          r_eff_plot_90 + theme(legend.position = "none"),
-                          nrow = 1, ncol = 2, align = "hv",
-                          axis = "l", label_size = fontsize_base * fontscale_label,
-                          label_fontfamily = titlefont, label_colour = "black")
-
-legend_a <- get_legend(control_plot_90 + theme(legend.justification = "center"))
-
-out_plot <- plot_grid(grid_plot_90, legend_a, ncol = 1, rel_heights = c(1,0.1))
-
+out_plot <- plot_grid(control_plot_90, r_eff_plot_90,
+                      labels = "auto", nrow = 1, ncol = 2, align = "hv",
+                      axis = "l", label_size = fontsize_base * fontscale_label,
+                      label_fontfamily = titlefont, label_colour = "black")
 
 
 #==============================================================================
@@ -184,9 +175,8 @@ out_plot <- plot_grid(grid_plot_90, legend_a, ncol = 1, rel_heights = c(1,0.1))
 #==============================================================================
 
 plot_scale <- 14
-plot_ratio <- 1.6
-plot_prefix <- "figures_local/img/si_presymptomatic"
-ggsave(filename=paste0(plot_prefix, ".png"), plot = out_plot,
-       device = "png", width = plot_scale * plot_ratio,
+plot_prefix <- "figures/si/presymptomatic"
+ggsave(filename=paste0(plot_prefix, ".svg"), plot = out_plot,
+       device = "svg", width = plot_scale*2.6,
        height = plot_scale, units = "cm",
        dpi = 320, limitsize = FALSE)
