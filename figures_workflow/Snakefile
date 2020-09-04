@@ -42,6 +42,12 @@ rule all:
         os.path.join(out_dir, "si_r0_window.png"),
         os.path.join(out_dir, "si_r0_test.png"),
         os.path.join(out_dir, "si_rel-reff.png"),
+        os.path.join(out_dir, "si_r0-contour-abs-reff.png"),
+        os.path.join(out_dir, "si_r0-contour-abs-ctrl.png"),
+        os.path.join(out_dir, "si_r0-contour-bidir-reff.png"),
+        os.path.join(out_dir, "si_r0-contour-bidir-ctrl.png"),
+        os.path.join(out_dir, "si_r0-contour-hybrid-reff.png"),
+        os.path.join(out_dir, "si_r0-contour-hybrid-ctrl.png"),
 #        os.path.join(out_dir, "si_r0-contour-reff.png"),
 #        os.path.join(out_dir, "si_r0-contour-ctrl.png"),
 #        os.path.join(out_dir, "si_r0-contour-bidir-rel.png"),
@@ -161,20 +167,25 @@ rule main_r0:
         legend_fill = "#F6F6F6",
     script: os.path.join(script_dir, "main_r0.R")
 
-#rule si_r0_contour:
-#    """Generate r0/uptake contour plots."""
-#    input: config["data"]["si"]["r0_contour"][...]
-#    output:
-#        reff = os.path.join(out_dir, "si_r0-contour-reff.png"),
-#        ctrl = os.path.join(out_dir, "si_r0-contour-ctrl.png"),
-#        bidir_rel = os.path.join(out_dir, "si_r0-contour-bidir-rel.png"),
-#        hybrid_rel_reff = os.path.join(out_dir, "si_r0-contour-hybrid-rel-reff.png"),
-#        hybrid_rel_ctrl = os.path.join(out_dir, "si_r0-contour-hybrid-rel-ctrl.png"),
-#    log: os.path.join(log_dir, "si_r0_contour.png")
-#    conda: env_main
-#    params:
-#        panel_scale = 11,
-#    script: os.path.join(script_dir, "si_r0-contour.R")
+rule si_r0_contour:
+    """Generate r0/uptake contour plots."""
+    input:
+        median = config["data"]["si"]["r0_contour"]["median"],
+        optimistic = config["data"]["si"]["r0_contour"]["optimistic"],
+        pessimistic = config["data"]["si"]["r0_contour"]["pessimistic"],
+    output:
+        abs_reff = os.path.join(out_dir, "si_r0-contour-abs-reff.png"),
+        abs_ctrl = os.path.join(out_dir, "si_r0-contour-abs-ctrl.png"),
+        bidir_reff = os.path.join(out_dir, "si_r0-contour-bidir-reff.png"),
+        bidir_ctrl = os.path.join(out_dir, "si_r0-contour-bidir-ctrl.png"),
+        hybrid_reff = os.path.join(out_dir, "si_r0-contour-hybrid-reff.png"),
+        hybrid_ctrl = os.path.join(out_dir, "si_r0-contour-hybrid-ctrl.png"),
+    log: os.path.join(log_dir, "si_r0_contour.png")
+    conda: env_main
+    params:
+        panel_scale = 9,
+        ascertainment = 0.5,
+    script: os.path.join(script_dir, "si_r0_contour.R")
 
 rule si_rel_reff:
     """Generate relative Reff plots."""
