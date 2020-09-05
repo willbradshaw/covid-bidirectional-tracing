@@ -32,13 +32,15 @@ window_path <- snakemake@input[["window"]]
 uptake_main <- snakemake@params[["uptake_main"]]
 
 # Output paths & parameters
-plot_scale_cm <- snakemake@params[["panel_scale"]]
+plot_scale_main_cm <- snakemake@params[["panel_scale_main"]]
+plot_scale_si_cm <- snakemake@params[["panel_scale_si"]]
 main_path <- snakemake@output[["main"]]
 si_uptake_reff_path <- snakemake@output[["si_uptake_reff"]]
 # plot_scale_cm <- 13
 # main_path <- "output_files/dev_main_strategies.png"
 # si_uptake_reff_path <- "output_files/dev_si_uptake_reff.png"
-plot_scale_in <- plot_scale_cm/2.54
+plot_scale_main_in <- plot_scale_main_cm/2.54
+plot_scale_si_in <- plot_scale_si_cm/2.54
 
 cat("done.\n")
 
@@ -201,7 +203,7 @@ window_contour <- window_data %>%
   contour_plot_reff_abs("p_traced_manual", "contact_limit_manual",
              palette = bidir_palette_sparse,
              breaks =  seq(0,10,step_sparse)) +
-  scale_y_continuous(name = "Manual trace limit (days)", limits = c(0,10),
+  scale_y_continuous(name = "Manual tracing window (days)", limits = c(0,10),
                      breaks = seq(0,10,2)) +
   scale_x_continuous(name = "Probability of trace\nsuccess (%)",
                      limits = c(0,1), breaks = seq(0,1,0.2),
@@ -275,7 +277,7 @@ cat("\n\tMaking R_eff contour plots...")
 si_uptake_reff_bidir <- si_uptake_data %>% filter(bt_type == "Bidirectional") %>%
   contour_plot_reff_abs("p_smartphone_overall", "p_data_sharing_auto",
                         palette = bidir_palette_sparse, breaks = seq(0,10,step_sparse)) +
-  scale_x_continuous(name = "% of cases with\nchirping smartphones",
+  scale_x_continuous(name = "% of cases with chirping smartphones",
                      labels = label_pc, breaks = seq(0,1,0.2)) +
   scale_y_continuous(name = "% of cases sharing data", labels = label_pc,
                      breaks = seq(0,1,0.2)) +
@@ -284,7 +286,7 @@ si_uptake_reff_bidir <- si_uptake_data %>% filter(bt_type == "Bidirectional") %>
 si_uptake_reff_fwd <- si_uptake_data %>% filter(bt_type == "Forward-only") %>%
   contour_plot_reff_abs("p_smartphone_overall", "p_data_sharing_auto",
                         palette = fwd_palette_sparse, breaks = seq(0,10,step_sparse)) +
-  scale_x_continuous(name = "% of cases with\nchirping smartphones",
+  scale_x_continuous(name = "% of cases with chirping smartphones",
                      labels = label_pc, breaks = seq(0,1,0.2)) +
   scale_y_continuous(name = "% of cases sharing data", labels = label_pc,
                      breaks = seq(0,1,0.2)) +
@@ -304,12 +306,12 @@ cat("\nSaving output...")
 
 cat("\n\tMain figure...")
 cowplot::save_plot(filename=main_path, plot=grid_main,
-                   ncol = 3, nrow = 2, base_height = plot_scale_in,
+                   ncol = 3, nrow = 2, base_height = plot_scale_main_in,
                    base_asp = 0.8)
 
 cat("\n\tSI R_eff contour plots...")
 cowplot::save_plot(filename=si_uptake_reff_path, plot=si_uptake_reff,
-                   ncol = 3, nrow = 2, base_height = plot_scale_in,
+                   ncol = 3, nrow = 2, base_height = plot_scale_si_in,
                    base_asp = 0.83)
 
 cat("done.\n")

@@ -59,7 +59,8 @@ theme_base <- theme_base + theme(
   legend.box.background = element_rect(fill = legend_fill, linetype = "blank"),
   legend.background = element_rect(fill = legend_fill, linetype = "blank"),
   legend.key = element_rect(colour = NA, fill = NA),
-  strip.text.x = element_text(face = "bold", margin=margin(b=0.4, unit="cm")),
+  strip.text.x = element_text(face = "bold", margin=margin(b=0.7, unit="cm")),
+  aspect.ratio = 2/3,
 )
 
 cat("done.\n")
@@ -143,7 +144,7 @@ cat("\nGenerating plots...")
 # Plotting functions
 #------------------------------------------------------------------------------
 
-ctrl_plot <- function(data, coord_ratio_base = 1.5){
+ctrl_plot <- function(data){
   r0_min <- min(data$r0_base)
   r0_max <- max(data$r0_base)
   g <- ggplot(data, aes(x=r0_base, y=p_controlled,
@@ -152,7 +153,7 @@ ctrl_plot <- function(data, coord_ratio_base = 1.5){
                         colour=trace_type,
                         linetype=backtrace_distance,
                         shape=backtrace_distance)) %>%
-    format_ctrl(coord_ratio = (r0_max-r0_min)/coord_ratio_base, 
+    format_ctrl(coord_ratio = NULL, 
                 ylab = "% outbreaks controlled") %>% 
     x_r0 %>% 
     colour_ttype %>% linetype_backtrace(label = label_backtrace_brief) %>%
@@ -161,14 +162,14 @@ ctrl_plot <- function(data, coord_ratio_base = 1.5){
   return(g)
 }
 
-reff_plot <- function(data, coord_ratio_base = 1.5){
+reff_plot <- function(data){
   r0_min <- min(data$r0_base)
   r0_max <- max(data$r0_base)
   g <- ggplot(data, aes(x=r0_base, y=effective_r0_mean,
                         colour=trace_type,
                         linetype=backtrace_distance,
                         shape=backtrace_distance)) %>%
-    format_reff(coord_ratio = (r0_max-r0_min)/r0_max/coord_ratio_base) %>% 
+    format_reff(coord_ratio = NULL) %>% 
     x_r0 %>% colour_ttype %>% 
     linetype_backtrace(label = label_backtrace_brief) %>%
     theme_external
@@ -176,10 +177,10 @@ reff_plot <- function(data, coord_ratio_base = 1.5){
   return(g)
 }
 
-grid_plot <- function(data, coord_ratio_base = 1.5,
+grid_plot <- function(data,
                       ctrl_top = ctrl_upper, join_scale = 20){
-  ctrl <- ctrl_plot(data, coord_ratio_base)
-  reff <- reff_plot(data, coord_ratio_base)
+  ctrl <- ctrl_plot(data)
+  reff <- reff_plot(data)
   if (ctrl_upper){
     ctrl <- ctrl %>% strip_upper(join_scale)
     reff <- reff %>% strip_lower(join_scale)

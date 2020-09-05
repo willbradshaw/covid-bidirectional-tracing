@@ -123,7 +123,7 @@ contour_window <- function(data, contour_fn = contour_plot_reff_abs,
                breaks = contour_breaks, coord_ratio = 10) +
     geom_hline(yintercept = 0.9, linetype = "dashed", colour = "red") +
     geom_vline(xintercept = c(2,7), linetype = "dashed", colour = "red") +
-    scale_x_continuous(name = "Trace limit (days)", limits = c(0,10),
+    scale_x_continuous(name = "Manual tracing window (days)", limits = c(0,10),
                        breaks = seq(0,10,2)) +
     scale_y_continuous(name = "Probability of trace\nsuccess (%)",
                        limits = c(0,1), breaks = seq(0,1,0.2),

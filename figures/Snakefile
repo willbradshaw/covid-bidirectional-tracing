@@ -84,7 +84,8 @@ rule main_strategies:
     conda: env_main
     params:
         uptake_main = 0.8,
-        panel_scale = 13,
+        panel_scale_main = 13,
+        panel_scale_si = 11,
     script: os.path.join(script_dir, "main_strategies.R")
 
 rule si_strategies_window:
@@ -131,7 +132,7 @@ rule si_ascsens_contour:
     log: os.path.join(log_dir, "si_ascsens_contour.png")
     conda: env_main
     params:
-        panel_scale = 9,
+        panel_scale = 7,
     script: os.path.join(script_dir, "si_ascsens_contour.R")
 
 #==============================================================================

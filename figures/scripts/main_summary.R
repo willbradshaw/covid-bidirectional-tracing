@@ -50,7 +50,7 @@ test_path <- snakemake@output[["si_test"]]
 theme_base <- theme_base + theme(
   plot.margin = margin(l = 0.4, r = 0.4, b = -0.3,
                        t = -0.2, unit = "cm"),
-  axis.title.y = element_text(margin = margin(r = 0.15, unit = "cm")),
+  axis.title.y = element_text(margin = margin(r = 0.3, unit = "cm")),
   axis.title.x = element_blank(),
   axis.text.x = element_text(angle=45,hjust=1,vjust=1,
                              size = fontsize_base * fontscale_mid,
@@ -66,7 +66,7 @@ theme_base <- theme_base + theme(
   legend.box.spacing = unit(0.6, "cm"),
   strip.text.x = element_text(face = "bold", margin=margin(b=0.4, unit="cm")),
   aspect.ratio = aspect_default,
-  panel.spacing.y = unit(0.5, "cm")
+  panel.spacing.y = unit(0.65, "cm")
 )
 
 cat("done.\n")
@@ -109,6 +109,7 @@ data_processed <- data %>%
          trace_window = ifelse(p_traced_manual == 0, "", paste0(", ", contact_limit_manual, "-day")),
          label = paste0(trace_type, uptake, trace_window),
          backtrace_distance = factor(backtrace_distance, levels = c(0, Inf)),
+         r0_base_lab = format(r0_base, nsmall = 1)
          )
 
 # Filter combinations
@@ -154,9 +155,9 @@ barplot_reff <- function(data, bar_width = bar_width_default){
                        limits = c(0,NA),
                        breaks = seq(0,10,0.5),
                        expand = c(0,0)) +
-    facet_grid(r0_base~scenario_type, scales = "fixed",
+    facet_grid(r0_base_lab~scenario_type, scales = "fixed",
                labeller = label_bquote(cols = .(scenario_type),
-                                       rows = italic(R)[0]~"="~.(r0_base))) +
+                                       rows = italic(R)[0]~"="~.(r0_base_lab))) +
     theme_base
   return(g %>% fill_backtrace(ncol = 2))
 }
@@ -165,7 +166,7 @@ label_current_practice <- function(g, data, yvar, blab_buffer, blab_colour,
                                    blab_label = "‡"){
   data[["y_raw"]] <- data[[yvar]]
   blab_tab <- data %>% filter(label %in% c("No tracing", "Manual, 2-day")) %>%
-    group_by(label, scenario_type, r0_base) %>%
+    group_by(label, scenario_type, r0_base_lab) %>%
     filter(y_raw == max(y_raw)) %>%
     filter(row_number() == 1) %>%
     mutate(y=y_raw+blab_buffer, colour = blab_colour)

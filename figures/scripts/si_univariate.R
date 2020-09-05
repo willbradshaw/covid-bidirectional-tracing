@@ -213,7 +213,7 @@ reff_sensitivity <- reff_plot(data_processed$sensitivity, "test_sensitivity",
 ctrl_sensitivity <- ctrl_plot(data_processed$sensitivity, "test_sensitivity",
                               xscale_sensitivity, 0.5, seq(0,1,0.1)) +
   facet_grid(trace_neg_symptomatic~., labeller=labeller(trace_neg_symptomatic = label_policy))
-plot_sensitivity <- grid_plot_base(reff_sensitivity, ctrl_sensitivity, 0.1)
+plot_sensitivity <- grid_plot_base(reff_sensitivity, ctrl_sensitivity, 0.15)
 
 plots <- list(
   environmental = plot_environmental,
@@ -235,7 +235,7 @@ cat("done.\n")
 cat("\nSaving output...")
 
 save_fig <- function(path, graph, label){
-  nrow <- ifelse(label == "sensitivity", 1.7, 1.3)
+  nrow <- ifelse(label == "sensitivity", 1.9, 1.3)
   cowplot::save_plot(filename=path, plot=graph,
                      ncol = 2.4, nrow = nrow, base_height = plot_scale_in,
                      base_asp = 1)
