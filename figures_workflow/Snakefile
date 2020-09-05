@@ -59,6 +59,10 @@ rule all:
         os.path.join(out_dir, "si_univariate_ascertainment.png"),
         os.path.join(out_dir, "si_univariate_isolation.png"),
         os.path.join(out_dir, "si_generation.png"),
+        os.path.join(out_dir, "si_asymptomatic_ctrl_highuptake.png"),
+        os.path.join(out_dir, "si_asymptomatic_reff_highuptake.png"),
+        os.path.join(out_dir, "si_asymptomatic_ctrl_lowuptake.png"),
+        os.path.join(out_dir, "si_asymptomatic_reff_lowuptake.png"),
         # TODO: Add asymptomatic SI figures
 
 #==============================================================================
@@ -236,16 +240,19 @@ rule si_generation:
         simul_nrep = 1000000,
     script: os.path.join(script_dir, "si_generation.R")
 
-#rule si_asymptomatic:
-#    """Generate asymptomatic (% vs rel. R0) figures."""
-#    input: ...
-#    output:
-#        ...
-#    log: os.path.join(log_dir, "si_asymptomatic.log")
-#    conda: env_main
-#    params:
-#        panel_scale = 11,
-#    script: os.path.join(script_dir, "si_asymptomatic.R")
+rule si_asymptomatic:
+    """Generate contour plots for asymptomatic carrier parameters."""
+    input: config["data"]["si"]["asymptomatic"]
+    output:
+        ctrl_high = os.path.join(out_dir, "si_asymptomatic_ctrl_highuptake.png"),
+        reff_high = os.path.join(out_dir, "si_asymptomatic_reff_highuptake.png"),
+        ctrl_low = os.path.join(out_dir, "si_asymptomatic_ctrl_lowuptake.png"),
+        reff_low = os.path.join(out_dir, "si_asymptomatic_reff_lowuptake.png"),
+    log: os.path.join(log_dir, "si_asymptomatic.log")
+    conda: env_main
+    params:
+        panel_scale = 7,
+    script: os.path.join(script_dir, "si_asymptomatic.R")
 
 rule si_univariate:
     """Generate univariate SI figures."""

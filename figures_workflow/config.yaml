@@ -28,7 +28,7 @@ data:
             median: data/si_r0_contour_median_1k_scenario.tsv.gz
             optimistic: data/si_r0_contour_optimistic_1k_scenario.tsv.gz
             pessimistic: data/si_r0_contour_pessimistic_1k_scenario.tsv.gz
-        asymptomatic: ...
+        asymptomatic: data/si_asymptomatic_500_scenario.tsv.gz
         univariate:
             environmental: data/si_univariate_environmental_500_scenario.tsv.gz
             overdispersion: data/si_univariate_overdispersion_500_scenario.tsv.gz
