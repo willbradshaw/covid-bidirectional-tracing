@@ -22,10 +22,9 @@ To run the branching-process model for a given set of assumptions:
 - To specify a number of cores, run:
 ```snakemake --use-conda --cores <n_cores>```
 
-To generate figures from existing data, run
+To generate figures from existing data:
 
-- ```Rscript figures/scripts/fig2.R```
-- ```Rscript figures/scripts/fig3.R```
-- ```Rscript figures/scripts/fig4.R```
-
-PNG/SVG images will be saved in `figures/img` within the project directory.
+- [Install conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and [Snakemake](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html) on your system.
+- Navigate to the `figures` directory.
+- Our data files for every figure are included in `figures/data`. If you have run your own simulations and want to use those instead, update the paths to data files in `figures/config.yaml`.
+- From within the `figures` directory, run Snakemake using the same commands described above. Output PNG images will be written to `figures/output_files`.
