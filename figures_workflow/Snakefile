@@ -51,26 +51,15 @@ rule all:
         os.path.join(out_dir, "main_summary.png"),
         os.path.join(out_dir, "si_summary_highasc.png"),
         os.path.join(out_dir, "si_summary_notest.png"),
-#        os.path.join(out_dir, "si_r0-contour-reff.png"),
-#        os.path.join(out_dir, "si_r0-contour-ctrl.png"),
-#        os.path.join(out_dir, "si_r0-contour-bidir-rel.png"),
-#        os.path.join(out_dir, "si_r0-contour-hybrid-rel-reff.png"),
-#        os.path.join(out_dir, "si_r0-contour-hybrid-rel-ctrl.png"),
-#        os.path.join(out_dir, "main_summary.png"),
-#        os.path.join(out_dir, "si_summary_highasc.png"),
-#        os.path.join(out_dir, "si_summary_lowuptake.png"),
-#        os.path.join(out_dir, "si_summary_2day.png"),
-#        os.path.join(out_dir, "si_summary_notest.png"),
-#        os.path.join(out_dir, "si_summary_r0_20.png"),
-#        os.path.join(out_dir, "si_summary_r0_30.png"),
+        # Other SI figures
+        os.path.join(out_dir, "si_univariate_environmental.png"),
+        os.path.join(out_dir, "si_univariate_overdispersion.png"),
+        os.path.join(out_dir, "si_univariate_presymptomatic.png"),
+        os.path.join(out_dir, "si_univariate_sensitivity.png"),
+        os.path.join(out_dir, "si_univariate_ascertainment.png"),
+        os.path.join(out_dir, "si_univariate_isolation.png"),
         os.path.join(out_dir, "si_generation.png"),
-#        # TODO: Add asymptomatic SI figures
-#        os.path.join(out_dir, "si_environmental.png"),
-#        os.path.join(out_dir, "si_overdispersion.png"),
-#        os.path.join(out_dir, "si_presymptomatic.png"),
-#        os.path.join(out_dir, "si_sensitivity.png"),
-#        os.path.join(out_dir, "si_ascertainment.png"),
-#        os.path.join(out_dir, "si_isolation.png"),
+        # TODO: Add asymptomatic SI figures
 
 #==============================================================================
 # STRATEGIES FIGURE
@@ -268,14 +257,15 @@ rule si_univariate:
         ascertainment = config["data"]["si"]["univariate"]["ascertainment"],
         isolation = config["data"]["si"]["univariate"]["isolation"],
     output:
-        environmental = os.path.join(out_dir, "si_environmental.png"),
-        overdispersion = os.path.join(out_dir, "si_overdispersion.png"),
-        presymptomatic = os.path.join(out_dir, "si_presymptomatic.png"),
-        sensitivity = os.path.join(out_dir, "si_sensitivity.png"),
-        ascertainment = os.path.join(out_dir, "si_ascertainment.png"),
-        isolation = os.path.join(out_dir, "si_isolation.png"),
+        environmental = os.path.join(out_dir, "si_univariate_environmental.png"),
+        overdispersion = os.path.join(out_dir, "si_univariate_overdispersion.png"),
+        presymptomatic = os.path.join(out_dir, "si_univariate_presymptomatic.png"),
+        sensitivity = os.path.join(out_dir, "si_univariate_sensitivity.png"),
+        ascertainment = os.path.join(out_dir, "si_univariate_ascertainment.png"),
+        isolation = os.path.join(out_dir, "si_univariate_isolation.png"),
     log: os.path.join(log_dir, "si_univariate.log")
     conda: env_main
     params:
         panel_scale = 11,
+        legend_fill = "#F6F6F6",
     script: os.path.join(script_dir, "si_univariate.R")

@@ -31,8 +31,8 @@ data:
         asymptomatic: ...
         univariate:
             environmental: data/si_univariate_environmental_500_scenario.tsv.gz
-            overdispersion: data/si_univariate_environmental_500_scenario.tsv.gz
-            presymptomatic: data/si_univariate_environmental_500_scenario.tsv.gz
-            sensitivity: data/si_univariate_environmental_500_scenario.tsv.gz
-            ascertainment: data/si_univariate_environmental_500_scenario.tsv.gz
-            isolation: data/si_univariate_environmental_500_scenario.tsv.gz
+            overdispersion: data/si_univariate_overdispersion_500_scenario.tsv.gz
+            presymptomatic: data/si_univariate_presymptomatic_500_scenario.tsv.gz
+            sensitivity: data/si_univariate_sensitivity_500_scenario.tsv.gz
+            ascertainment: data/si_univariate_ascertainment_500_scenario.tsv.gz
+            isolation: data/si_univariate_isolation_500_scenario.tsv.gz

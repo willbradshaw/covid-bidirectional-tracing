@@ -116,12 +116,13 @@ label_ident <- function(x) x
 
 format_ctrl <- function(g, err_width=0.05, pt_size = 2, coord_ratio = 1,
                         ylab = "% of outbreaks controlled",
-                        ylimits = c(0,1)){
+                        ylimits = c(0,1), ybreaks = seq(0,1,0.2)){
   #' Add general formatting to control plot
-  g + geom_errorbar(width=err_width) + geom_line() + geom_point(size=pt_size) +
-    coord_fixed(ratio = coord_ratio) + 
+  g <- g + geom_errorbar(width=err_width) + geom_line() + geom_point(size=pt_size) +
     scale_y_continuous(name = ylab, limits = ylimits,
-                       breaks = seq(0,1,0.2), labels = label_pc)
+                       breaks = ybreaks, labels = label_pc)
+  if (!is.null(coord_ratio)) g <- g + coord_fixed(ratio = coord_ratio)
+  return(g)
 }
 
 format_reff <- function(g, r0 = NULL, pt_size = 2, coord_ratio = 1,
@@ -137,12 +138,13 @@ format_reff <- function(g, r0 = NULL, pt_size = 2, coord_ratio = 1,
       scale_y_continuous(name = expression(paste("Mean ",italic(R)[eff])),
                          breaks = seq(0,100,0.5), limits = c(0, r0)) +
       annotate("text", x=r0_lab_x, y=r0*r0_lab_yscale, hjust=1, vjust = 1,
-               colour = r0_col, size=r0_lab_size, label=expression(italic(R)[0])) +
-      coord_fixed(ratio = coord_ratio/r0)
+               colour = r0_col, size=r0_lab_size, label=expression(italic(R)[0]))
+    if (!is.null(coord_ratio)) g <- g + coord_fixed(ratio = coord_ratio/r0)
   } else {
-    g <- g + coord_fixed(ratio = coord_ratio) +
+    g <- g + 
       scale_y_continuous(name = expression(paste("Mean ",italic(R)[eff])),
                          breaks = seq(0,100,0.5), limits = c(0, NA))
+    if (!is.null(coord_ratio)) g <- g + coord_fixed(ratio = coord_ratio)
   }
   return(g)
 }
