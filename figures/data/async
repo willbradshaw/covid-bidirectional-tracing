@@ -1,3 +1,0 @@
-#! /usr/bin/env bash
-
-rsync -azvh -e "ssh -i ~/bradshaw_collab.pem" --info progress2 ubuntu@ec2-54-162-191-127.compute-1.amazonaws.com:${1} ${2}

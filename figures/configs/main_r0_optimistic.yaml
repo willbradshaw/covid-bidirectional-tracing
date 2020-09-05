@@ -1,0 +1,78 @@
+# Config file for bidirectional tracing model
+
+#=============================================================================
+# High-level simulation parameters
+#=============================================================================
+
+simulation_name: "main_r0_optimistic_1k"
+
+n_threads_max: 1000 # Max no. of cores to use for simulation
+n_iterations: 1000 # Number of runs per scenario
+print_reports: TRUE # Print per-scenario time reports during simulation
+show_progress: False # Use mapping function's show_progress option
+
+env_path: "workflow/envs/env.yaml"
+
+ci_parameters: # Parameters for beta credible interval for control rate
+    ci_width: 0.95 # Width of credible interval
+    alpha_prior: 1 # Parameters of beta-prior
+    beta_prior: 1  # "
+
+output_parameters: # Write options (NB: overall scenario summaries always written)
+    path_prefix: "output_files/data/test"
+    write_raw: False # Write full case reports? (largest)
+    write_weekly: False # Write per-week summaries?
+    write_gen: False # Write per-generation summaries?
+    write_run: False # Write per-run summaries?
+
+#=============================================================================
+# Scenario parameters
+#=============================================================================
+# List of named items giving all possible values of each parameter.
+# Simulation will be run for each combination of values across all keys.
+#=============================================================================
+
+scenario_parameters:
+
+    # Probabilities (0 to 1)
+    p_asymptomatic: 0.40 # Proportion of cases that are fully asymptomatic carriers
+    p_ident_sym: [0.5, 0.9] # Proportion of symptomatic cases that are identified (without tracing)
+    p_smartphone_overall: [0.53,0.8] # Proportion of cases with trace-enabled smartphones
+    p_smartphone_link: -1 # Proportion of contacts of cases with smartphones who have smartphones (-1 to disable and just use p_smartphone_overall)
+    p_traced_auto: [0, 0.9] # Success rate of automated contact tracing (out of possible traces)
+    p_traced_manual: [0, 0.9] # Success rate of manual contact tracing (out of possible traces that can't be traced automatically)
+    p_environmental: 0.05 # Proportion of contacts that are environmental (here = untraceable)
+    p_compliance_isolation: 0.9 # Proportion of cases who comply with isolation/quarantine
+    p_data_sharing_auto: 0.90 # Proportion of individuals who share/upload contact data for onward automated tracing
+    p_data_sharing_manual: 0.98 # Proportion of individuals who share/upload contact data for onward manual tracing
+    test_sensitivity: 0.7 # P(positive test|true case)
+
+    # Numeric values (for infinities, write "Inf")
+    r0_base: [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0] # Overall R0 in the absence of interventions
+    rel_r0_asymptomatic: 0.45 # R0 of asymptomatic carriers in the absence of interventions, as a fraction of r0_base
+    dispersion: 0.11 # Superspreading parameter (smaller = more variance in #offspring)
+    generation_omega: 2 # Scale parameter of generation-time distribution
+    generation_alpha: 0.397 # Skew parameter of GT distr. (smaller = more pre-symptomatic transmission)
+    recovery_quantile: 0.999 # Quantile of GT distr. to use as recovery time (larger = later recov.)
+    n_initial_cases: 20 # Number of independent index cases
+    data_limit_auto: 14 # Number of days contact data for automated tracing is retained
+    data_limit_manual: Inf # Number of days contact data for manual tracing is retained
+    contact_limit_auto: Inf # Number of days prior to min(trace initiation, symptom onset) scanned for contacts under automated tracing
+    contact_limit_manual: [2,6] # Number of days prior to min(trace initiation, symptom onset) scanned for contacts under manual tracing
+    rollout_delay_gen: 0 # Delay in generations between simulation start and initiation of response
+    rollout_delay_days: 0 # Delay in days between simulation start and initiation of response
+    cap_max_generations: Inf # Maximum number of simulation generations before control fails
+    cap_max_weeks: 52 # Maximum number of simulation days before control fails
+    cap_cases: 10000 # Maximum number of cumulative cases before control fails
+    backtrace_distance: [0,Inf] # Maximum number of generations of reverse contact tracing
+
+    # Boolean switches
+    test_serological: True # Whether testing can detect recovered individuals
+    trace_neg_symptomatic: [True,False] # Whether symptomatic cases who test negative are traced
+
+    # Distributions (specified as R-function strings)
+    incubation_time: "function(n) rlnorm(n=n, meanlog = 1.644, sdlog = 0.363)" # Time between exposure and symptom onset
+    test_time: "function (n) rgamma(n=n, shape=3, rate=6)+0.5" # Time taken to perform test
+    trace_time_auto: "function(n) rep(0, n)" # Time taken to trace contacts using automated tracing
+    trace_time_manual: "function(n) rlnorm(n=n, meanlog=log(0.5), sdlog=1.5)" # Time taken to trace contacts using manual tracing
+    delay_time: "function(n) rweibull(n=n, scale = 4.287786, shape = 1.651524)" # Time between symptom onset and case identification
