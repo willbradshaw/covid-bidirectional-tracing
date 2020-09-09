@@ -28,17 +28,17 @@ window_path <- snakemake@input[["window"]]
 # uptake_path <- "data/main_strategies_uptake_1k_scenario.tsv.gz"
 # window_path <- "data/si_window_median_1k_scenario.tsv.gz"
 
-# uptake_main <- 0.8
-uptake_main <- snakemake@params[["uptake_main"]]
-
 # Output paths & parameters
 plot_scale_main_cm <- snakemake@params[["panel_scale_main"]]
 plot_scale_si_cm <- snakemake@params[["panel_scale_si"]]
 main_path <- snakemake@output[["main"]]
 si_uptake_reff_path <- snakemake@output[["si_uptake_reff"]]
-# plot_scale_cm <- 13
+si_digital_univ_path <- snakemake@output[["si_digital_univ"]]
+# plot_scale_main_cm <- 13
+# plot_scale_si_cm <- 11
 # main_path <- "output_files/dev_main_strategies.png"
 # si_uptake_reff_path <- "output_files/dev_si_uptake_reff.png"
+# si_digital_univ_path <- "output_files/dev_si_digital_univ.png"
 plot_scale_main_in <- plot_scale_main_cm/2.54
 plot_scale_si_in <- plot_scale_si_cm/2.54
 
@@ -74,10 +74,14 @@ uptake_data <- suppressMessages(read_tsv(uptake_path)) %>%
 # Window contour plots
 
 window_data <- suppressMessages(read_tsv(window_path)) %>% 
-  filter(p_traced_auto != 0, p_smartphone_overall == uptake_main,
-         backtrace_distance == Inf) %>%
+  filter(p_traced_auto == 0, backtrace_distance == Inf, p_smartphone_overall == 0.8) %>%
   index_data(key_x = "contact_limit_manual", key_y = "p_traced_manual") %>%
   smooth_data(group_vars = c())
+
+# Relative R_eff data (manual vs hybrid)
+rel_data <- manual_data %>% group_by(backtrace_distance, contact_limit_manual, 
+                         p_smartphone_overall, p_traced_manual) %>% 
+  arrange(desc(p_traced_auto)) %>% summarise(r_eff_diff = diff(effective_r0_mean))
 
 cat("done.\n")
 
@@ -101,7 +105,8 @@ reff_manual <- manual_data %>%
              colour=backtrace_distance, 
              linetype=contact_limit_manual,
              shape=contact_limit_manual)) %>%
-  format_reff(r0=2.5) %>% colour_backtrace %>% linetype_window %>% x_ptrace %>%
+  format_reff(r0=2.5) %>% colour_backtrace %>% 
+  linetype_window(label = label_windows) %>% x_ptrace %>%
   theme_internal(pos = c(0.02, 0.01), yjust = 0, xjust = 0, vspace=vspace)
 
 cat("\n\t2")
@@ -124,7 +129,7 @@ reff_hybrid_raw <- hybrid_data %>%
              linetype=contact_limit_manual,
              shape=contact_limit_manual)) %>%
   format_reff(r0=2.5) %>% #colour_backtrace %>% 
-  linetype_window(label = label_limits_manual) %>% x_ptrace %>%
+  linetype_window(label = label_windows_manual) %>% x_ptrace %>%
   theme_internal(pos = c(0.02, 0.01), yjust = 0, xjust = 0, vspace=vspace)
 reff_hybrid <- reff_hybrid_raw + 
   scale_colour_manual(name = NULL, values = c("#1B9E77", "#7570B3", "#D95F02", "#E7298A")) +
@@ -132,18 +137,42 @@ reff_hybrid <- reff_hybrid_raw +
     legend.background = element_rect(fill = alpha("white", 0.8))
   )
 
-cat("\n\t3")
-
-reff_univ <- digital_data %>%
-  filter(p_smartphone_overall == 1.0, p_data_sharing_auto == 1.0) %>%
-  ggplot(aes(x=p_traced_auto, y=effective_r0_mean,
-             colour=backtrace_distance,
-             linetype=contact_limit_auto,
-             shape=contact_limit_auto)) %>%
-  format_reff(r0=2.5) %>% colour_backtrace %>% linetype_window %>% x_ptrace %>%
-  theme_internal(pos = c(0.02, 0.01), yjust = 0, xjust = 0, vspace=vspace)
-
 cat("\n...done.\n")
+
+#------------------------------------------------------------------------------
+# Relative R_eff line plots
+#------------------------------------------------------------------------------
+
+rel_data_labelled <- rel_data %>%
+  mutate(bidir_type = ifelse(backtrace_distance == 0, "Forward tracing only",
+                             "Bidirectional tracing"),
+         uptake_pc = paste0(round(p_smartphone_overall * 100), "%"),
+         uptake_type = ifelse(backtrace_distance == 0 & p_smartphone_overall == 0.53,
+                              paste0(" (", uptake_pc, "\nsmartphone coverage)"),
+                              paste0(" (", uptake_pc, ")")),
+         label = paste0(bidir_type, uptake_type)) %>%
+  mutate(label = factor(label, levels = c("Forward tracing only (53%\nsmartphone coverage)",
+                                          "Forward tracing only (80%)",
+                                          "Bidirectional tracing (53%)",
+                                          "Bidirectional tracing (80%)")))
+
+reff_rel_raw <- rel_data_labelled %>%
+  ggplot(aes(x=p_traced_manual, y=r_eff_diff,
+             colour = label,
+             linetype=contact_limit_manual,
+             shape=contact_limit_manual)) %>%
+  linetype_window(label = label_windows_manual) %>% x_ptrace %>%
+  theme_internal(pos = c(0.02, 0.01), yjust = 0, xjust = 0, vspace=vspace)
+reff_rel <- reff_rel_raw +
+  geom_line() + geom_point(size=2) +
+  scale_y_continuous(name = expression(paste("Δ",italic(R)[eff], " (hybrid vs manual)")),
+                     breaks = seq(-10,10,0.1), limits = c(-0.5, 0.1)) +
+  scale_colour_manual(name = NULL, values = c("#1B9E77", "#7570B3", "#D95F02", "#E7298A")) +
+  guides(colour=guide_legend(ncol = 1, order = 1)) + theme(
+    legend.background = element_rect(fill = alpha("white", 0.8))
+  ) +
+  theme(aspect.ratio = 1)
+
 
 #------------------------------------------------------------------------------
 # R_eff contour plots
@@ -165,16 +194,32 @@ reff_contour_digital <- uptake_data %>%
          contact_limit_manual == 6) %>%
   contour_plot_reff_abs("p_smartphone_overall", "p_data_sharing_auto",
                         palette = bidir_palette_sparse, breaks = seq(0,10,step_sparse)) +
+  geom_vline(xintercept = c(0.53, 0.8), linetype = "dashed", colour = "red") +
+  geom_hline(yintercept = 0.9, linetype = "dashed", colour = "red") +
   scale_x_continuous(name = "% of cases with\nchirping smartphones",
                      labels = label_pc, breaks = seq(0,1,0.2)) +
   scale_y_continuous(name = "% of cases sharing data", labels = label_pc,
                      breaks = seq(0,1,0.2))
 
-reff_contour_hybrid <- uptake_data %>%
+reff_contour_hybrid_6day <- uptake_data %>%
   filter(p_traced_manual != 0, backtrace_distance == Inf,
          contact_limit_manual == 6) %>%
   contour_plot_reff_abs("p_smartphone_overall", "p_data_sharing_auto",
-                        palette = bidir_palette_dense, breaks = seq(0,10,step_dense)) +
+                        palette = bidir_palette_sparse, breaks = seq(0,10,step_sparse)) +
+  geom_vline(xintercept = c(0.53, 0.8), linetype = "dashed", colour = "red") +
+  geom_hline(yintercept = 0.9, linetype = "dashed", colour = "red") +
+  scale_x_continuous(name = "% of cases with\nchirping smartphones",
+                     labels = label_pc, breaks = seq(0,1,0.2)) +
+  scale_y_continuous(name = "% of cases sharing data", labels = label_pc,
+                     breaks = seq(0,1,0.2))
+
+reff_contour_hybrid_2day <- uptake_data %>%
+  filter(p_traced_manual != 0, backtrace_distance == Inf,
+         contact_limit_manual == 2) %>%
+  contour_plot_reff_abs("p_smartphone_overall", "p_data_sharing_auto",
+                        palette = bidir_palette_sparse, breaks = seq(0,10,step_sparse)) +
+  geom_vline(xintercept = c(0.53, 0.8), linetype = "dashed", colour = "red") +
+  geom_hline(yintercept = 0.9, linetype = "dashed", colour = "red") +
   scale_x_continuous(name = "% of cases with\nchirping smartphones",
                      labels = label_pc, breaks = seq(0,1,0.2)) +
   scale_y_continuous(name = "% of cases sharing data", labels = label_pc,
@@ -184,12 +229,13 @@ reff_contour_hybrid <- uptake_data %>%
 contour_label <- "Effective reprod. number, given\n90% prob. of trace success"
 label_contour <- function(contour_plot, size = fontsize_base * 5/14,
                           label=contour_label){
-  contour_plot + annotate("label", x=0.02, y=0.98, label=label,
-                          hjust = 0, vjust = 1, size = size,
+  contour_plot + annotate("label", x=0.02, y=0.02, label=label,
+                          hjust = 0, vjust = 0, size = size,
                           label.size=NA, fill=alpha("white", 0.8))
 }
 reff_contour_digital_labelled <- label_contour(reff_contour_digital)
-reff_contour_hybrid_labelled <- label_contour(reff_contour_hybrid)
+reff_contour_hybrid_6day_labelled <- label_contour(reff_contour_hybrid_6day)
+reff_contour_hybrid_2day_labelled <- label_contour(reff_contour_hybrid_2day)
 
 cat("done.\n")
 
@@ -210,10 +256,10 @@ window_contour <- window_data %>%
                      labels = label_pc) +
   theme(aspect.ratio = 1)
 
-label_window <- paste0("Effective reprod. number, given\n",
-                       round(uptake_main*100), "% smartphone coverage")
+# label_window <- paste0("Effective reprod. number, given\n",
+#                        round(uptake_main*100), "% smartphone coverage")
 window_contour_labelled <- window_contour +
-  annotate("label", x=0.02, y=9.8, label=label_window,
+  annotate("label", x=0.02, y=9.8, label=contour_label,
            hjust = 0, vjust = 1, size = fontsize_base * 5/14,
            label.size=NA, fill=alpha("white", 0.8))
 
@@ -226,15 +272,15 @@ cat("done.\n")
 cat("\nAssembling main figure...\n")
 
 grid_main <- plot_grid(reff_manual + ggtitle("Manual tracing only"),
-                       reff_univ + ggtitle("Digital tracing only\n(universal uptake)"),
+                       window_contour_labelled + 
+                         ggtitle("Effect of tracing window\n (bidir. manual tracing)"),
                        reff_contour_digital_labelled +
                          ggtitle("Effect of digital uptake\n(bidir. digital tracing)"),
                        reff_hybrid + ggtitle("Manual + digital\n(hybrid) tracing"),
-                       # ctrl_comp + ggtitle("% outbreaks controlled"),
-                       window_contour_labelled + 
-                         ggtitle("Effect of tracing window\n (bidir. hybrid tracing)"),
-                       reff_contour_hybrid_labelled + 
-                         ggtitle("Effect of digital uptake\n(bidir. hybrid tracing)"),
+                       reff_contour_hybrid_2day_labelled + 
+                         ggtitle("Effect of digital uptake\n(bidir. hybrid tracing,\n2-day manual window)"),
+                       reff_contour_hybrid_6day_labelled + 
+                         ggtitle("Effect of digital uptake\n(bidir. hybrid tracing,\n6-day manual window)"),
                        labels = "auto", nrow = 2, ncol = 3, align = "hv",
                        axis = "l", label_size = fontsize_base * fontscale_label,
                        label_fontfamily = titlefont, label_colour = "black")
@@ -244,6 +290,23 @@ cat("\n...done.\n")
 #==============================================================================
 # Supplementary versions
 #==============================================================================
+
+#------------------------------------------------------------------------------
+# Single-strategy R_eff plot for universal digital tracing
+#------------------------------------------------------------------------------
+
+cat("\nGenerating universal digital plot...")
+
+si_reff_univ <- digital_data %>%
+  filter(p_smartphone_overall == 1.0, p_data_sharing_auto == 1.0) %>%
+  ggplot(aes(x=p_traced_auto, y=effective_r0_mean,
+             colour=backtrace_distance,
+             linetype=contact_limit_auto,
+             shape=contact_limit_auto)) %>%
+  format_reff(r0=2.5) %>% colour_backtrace %>% linetype_window %>% x_ptrace %>%
+  theme_internal(pos = c(0.02, 0.01), yjust = 0, xjust = 0, vspace=vspace)
+
+cat("done.\n")
 
 #------------------------------------------------------------------------------
 # Generalised contour plots
@@ -277,6 +340,8 @@ cat("\n\tMaking R_eff contour plots...")
 si_uptake_reff_bidir <- si_uptake_data %>% filter(bt_type == "Bidirectional") %>%
   contour_plot_reff_abs("p_smartphone_overall", "p_data_sharing_auto",
                         palette = bidir_palette_sparse, breaks = seq(0,10,step_sparse)) +
+  geom_vline(xintercept = c(0.53, 0.8), linetype = "dashed", colour = "red") +
+  geom_hline(yintercept = 0.9, linetype = "dashed", colour = "red") +
   scale_x_continuous(name = "% of cases with chirping smartphones",
                      labels = label_pc, breaks = seq(0,1,0.2)) +
   scale_y_continuous(name = "% of cases sharing data", labels = label_pc,
@@ -286,6 +351,8 @@ si_uptake_reff_bidir <- si_uptake_data %>% filter(bt_type == "Bidirectional") %>
 si_uptake_reff_fwd <- si_uptake_data %>% filter(bt_type == "Forward-only") %>%
   contour_plot_reff_abs("p_smartphone_overall", "p_data_sharing_auto",
                         palette = fwd_palette_sparse, breaks = seq(0,10,step_sparse)) +
+  geom_vline(xintercept = c(0.53, 0.8), linetype = "dashed", colour = "red") +
+  geom_hline(yintercept = 0.9, linetype = "dashed", colour = "red") +
   scale_x_continuous(name = "% of cases with chirping smartphones",
                      labels = label_pc, breaks = seq(0,1,0.2)) +
   scale_y_continuous(name = "% of cases sharing data", labels = label_pc,
@@ -306,12 +373,17 @@ cat("\nSaving output...")
 
 cat("\n\tMain figure...")
 cowplot::save_plot(filename=main_path, plot=grid_main,
-                   ncol = 3, nrow = 2, base_height = plot_scale_main_in,
+                   ncol = 3, nrow = 2.1, base_height = plot_scale_main_in,
                    base_asp = 0.8)
 
 cat("\n\tSI R_eff contour plots...")
 cowplot::save_plot(filename=si_uptake_reff_path, plot=si_uptake_reff,
                    ncol = 3, nrow = 2, base_height = plot_scale_si_in,
+                   base_asp = 0.83)
+
+cat("\n\tDigital R_eff plots...")
+cowplot::save_plot(filename=si_digital_univ_path, plot=si_reff_univ,
+                   ncol = 1.2, nrow = 1.2, base_height = plot_scale_si_in,
                    base_asp = 0.83)
 
 cat("done.\n")

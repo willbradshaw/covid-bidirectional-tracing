@@ -94,6 +94,15 @@ label_limits_manual <- function(x){
   ifelse(as.numeric(x) == Inf, "No manual limit", paste0(x, "-day manual limit"))
 }
 
+label_windows <- function(x){
+  ifelse(as.numeric(x) == Inf, "No trace limit", paste0(x, "-day tracing window"))
+}
+
+label_windows_manual <- function(x){
+  ifelse(as.numeric(x) == Inf, "No manual limit", paste0(x, "-day manual window"))
+}
+
+
 
 label_vars <- function(x){
   ifelse(x=="p_data_sharing_auto", "% of cases sharing data",

@@ -80,6 +80,7 @@ rule main_strategies:
     output:
         main = os.path.join(out_dir, "main_strategies.png"),
         si_uptake_reff = os.path.join(out_dir, "si_strategies-uptake-reff.png"),
+        si_digital_univ = os.path.join(out_dir, "si_digital-univ-reff.png"),
     log: os.path.join(log_dir, "main_strategies.log")
     conda: env_main
     params:
