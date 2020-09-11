@@ -34,11 +34,13 @@ plot_scale_si_cm <- snakemake@params[["panel_scale_si"]]
 main_path <- snakemake@output[["main"]]
 si_uptake_reff_path <- snakemake@output[["si_uptake_reff"]]
 si_digital_univ_path <- snakemake@output[["si_digital_univ"]]
+si_hybrid_delta_path <- snakemake@output[["si_hybrid_delta"]]
 # plot_scale_main_cm <- 13
 # plot_scale_si_cm <- 11
 # main_path <- "output_files/dev_main_strategies.png"
 # si_uptake_reff_path <- "output_files/dev_si_uptake_reff.png"
 # si_digital_univ_path <- "output_files/dev_si_digital_univ.png"
+# si_hybrid_delta_path <- "output_files/dev_si_hybrid_delta.png"
 plot_scale_main_in <- plot_scale_main_cm/2.54
 plot_scale_si_in <- plot_scale_si_cm/2.54
 
@@ -79,10 +81,38 @@ window_data <- suppressMessages(read_tsv(window_path)) %>%
   smooth_data(group_vars = c())
 
 # Relative R_eff data (manual vs hybrid)
-rel_data <- manual_data %>% group_by(backtrace_distance, contact_limit_manual, 
-                         p_smartphone_overall, p_traced_manual) %>% 
-  arrange(desc(p_traced_auto)) %>% summarise(r_eff_diff = diff(effective_r0_mean))
+manual_only_data <- manual_data %>%
+  filter(p_traced_auto == 0, p_smartphone_overall == 0.8) %>%
+  select(-p_smartphone_overall, -p_traced_auto) %>%
+  rename(effective_r0_manual = effective_r0_mean)
 
+rel_data_hybrid <- manual_data %>%
+  filter(p_traced_auto != 0) %>%
+  inner_join(manual_only_data, 
+             by = c("contact_limit_manual", "p_traced_manual", "backtrace_distance")) %>%
+  mutate(effective_r0_rel = effective_r0_mean - effective_r0_manual)
+
+# Relative R_eff data (bidir vs current practice)
+current_practice <- manual_data %>%
+  filter(p_traced_auto == 0, p_smartphone_overall == 0.8, contact_limit_manual == 2) %>%
+  select(-p_traced_auto, -p_smartphone_overall, -contact_limit_manual) %>%
+  rename(effective_r0_current = effective_r0_mean) %>%
+  mutate(effective_r0_current_rel = effective_r0_current - effective_r0_current[p_traced_manual == 0])
+current_practice_fwd <- current_practice %>%
+  filter(backtrace_distance == 0) %>% select(-backtrace_distance)
+current_practice_bidir <- current_practice %>%
+  filter(backtrace_distance == Inf) %>% select(-backtrace_distance)
+
+rel_data_bidir_fwd <- manual_data %>%
+  filter(backtrace_distance == Inf) %>%
+  inner_join(current_practice_fwd, by="p_traced_manual") %>%
+  mutate(effective_r0_rel_sub = effective_r0_mean - effective_r0_current,
+         effective_r0_rel_div = effective_r0_rel_sub / effective_r0_current_rel)
+rel_data_bidir_bidir <- manual_data %>%
+  filter(backtrace_distance == Inf) %>%
+  inner_join(current_practice_bidir, by="p_traced_manual") %>%
+  mutate(effective_r0_rel = effective_r0_mean - effective_r0_current)
+  
 cat("done.\n")
 
 #==============================================================================
@@ -143,7 +173,9 @@ cat("\n...done.\n")
 # Relative R_eff line plots
 #------------------------------------------------------------------------------
 
-rel_data_labelled <- rel_data %>%
+# Hybrid - manual
+
+rel_data_hybrid_labelled <- rel_data_hybrid %>%
   mutate(bidir_type = ifelse(backtrace_distance == 0, "Forward tracing only",
                              "Bidirectional tracing"),
          uptake_pc = paste0(round(p_smartphone_overall * 100), "%"),
@@ -156,23 +188,23 @@ rel_data_labelled <- rel_data %>%
                                           "Bidirectional tracing (53%)",
                                           "Bidirectional tracing (80%)")))
 
-reff_rel_raw <- rel_data_labelled %>%
-  ggplot(aes(x=p_traced_manual, y=r_eff_diff,
+reff_rel_hybrid_raw <- rel_data_hybrid_labelled %>%
+  ggplot(aes(x=p_traced_manual, y=effective_r0_rel,
              colour = label,
              linetype=contact_limit_manual,
              shape=contact_limit_manual)) %>%
   linetype_window(label = label_windows_manual) %>% x_ptrace %>%
   theme_internal(pos = c(0.02, 0.01), yjust = 0, xjust = 0, vspace=vspace)
-reff_rel <- reff_rel_raw +
+reff_rel_hybrid <- reff_rel_hybrid_raw +
+  geom_hline(yintercept = 0, linetype = "dotted", colour = "black", size = 1) +
   geom_line() + geom_point(size=2) +
-  scale_y_continuous(name = expression(paste("Δ",italic(R)[eff], " (hybrid vs manual)")),
-                     breaks = seq(-10,10,0.1), limits = c(-0.5, 0.1)) +
+  scale_y_continuous(name = expression(paste("Δ",italic(R)[eff], " (hybrid – manual)")),
+                     breaks = seq(-10,10,0.2), limits = c(-0.7, 0.05)) +
   scale_colour_manual(name = NULL, values = c("#1B9E77", "#7570B3", "#D95F02", "#E7298A")) +
   guides(colour=guide_legend(ncol = 1, order = 1)) + theme(
     legend.background = element_rect(fill = alpha("white", 0.8))
   ) +
   theme(aspect.ratio = 1)
-
 
 #------------------------------------------------------------------------------
 # R_eff contour plots
@@ -226,7 +258,7 @@ reff_contour_hybrid_2day <- uptake_data %>%
                      breaks = seq(0,1,0.2))
 
 # Add labels
-contour_label <- "Effective reprod. number, given\n90% prob. of trace success"
+contour_label <- expression(paste(italic(R)[eff], "  given 90% trace success"))#"Effective reprod. number, given\n90% prob. of trace success"
 label_contour <- function(contour_plot, size = fontsize_base * 5/14,
                           label=contour_label){
   contour_plot + annotate("label", x=0.02, y=0.02, label=label,
@@ -256,11 +288,9 @@ window_contour <- window_data %>%
                      labels = label_pc) +
   theme(aspect.ratio = 1)
 
-# label_window <- paste0("Effective reprod. number, given\n",
-#                        round(uptake_main*100), "% smartphone coverage")
 window_contour_labelled <- window_contour +
-  annotate("label", x=0.02, y=9.8, label=contour_label,
-           hjust = 0, vjust = 1, size = fontsize_base * 5/14,
+  annotate("label", x=0.02, y=0.2, label=expression(italic(R)[eff]),
+           hjust = 0, vjust = 0, size = fontsize_base * 5/14,
            label.size=NA, fill=alpha("white", 0.8))
 
 cat("done.\n")
@@ -277,9 +307,11 @@ grid_main <- plot_grid(reff_manual + ggtitle("Manual tracing only"),
                        reff_contour_digital_labelled +
                          ggtitle("Effect of digital uptake\n(bidir. digital tracing)"),
                        reff_hybrid + ggtitle("Manual + digital\n(hybrid) tracing"),
+                       # reff_rel +
+                       #   ggtitle("Relative benefit of\nhybrid tracing"),
                        reff_contour_hybrid_2day_labelled + 
                          ggtitle("Effect of digital uptake\n(bidir. hybrid tracing,\n2-day manual window)"),
-                       reff_contour_hybrid_6day_labelled + 
+                       reff_contour_hybrid_6day_labelled +
                          ggtitle("Effect of digital uptake\n(bidir. hybrid tracing,\n6-day manual window)"),
                        labels = "auto", nrow = 2, ncol = 3, align = "hv",
                        axis = "l", label_size = fontsize_base * fontscale_label,
@@ -385,5 +417,11 @@ cat("\n\tDigital R_eff plots...")
 cowplot::save_plot(filename=si_digital_univ_path, plot=si_reff_univ,
                    ncol = 1.2, nrow = 1.2, base_height = plot_scale_si_in,
                    base_asp = 0.83)
+
+cat("\n\tHybrid/manual relative R_eff plots...")
+cowplot::save_plot(filename=si_hybrid_delta_path, plot=reff_rel_hybrid,
+                   ncol = 1.2, nrow = 1.2, base_height = plot_scale_si_in,
+                   base_asp = 0.83)
+
 
 cat("done.\n")

@@ -43,11 +43,13 @@ main_path <- snakemake@output[["main"]]
 ascertainment_path <- snakemake@output[["si_ascertainment"]]
 uptake_path <- snakemake@output[["si_uptake"]]
 window_path <- snakemake@output[["si_window"]]
+window_uptake_path <- snakemake@output[["si_window_uptake"]]
 test_path <- snakemake@output[["si_test"]]
 # main_path <- "output_files/dev_main_r0.png"
 # ascertainment_path <- "output_files/dev_si_r0_ascertainment.png"
 # uptake_path <- "output_files/dev_si_r0_uptake.png"
 # window_path <- "output_files/dev_si_r0_window.png"
+# window_uptake_path <- "output_files/dev_si_r0_window_uptake.png"
 # test_path <- "output_files/dev_si_r0_test.png"
 
 # Modify theme
@@ -126,6 +128,12 @@ data_window <- comb_data %>%
          contact_limit_manual != window_main,
          trace_neg_symptomatic == trace_neg_main)
 
+data_window_uptake <- comb_data %>% 
+  filter(p_ident_sym == ascertainment_main,
+         p_smartphone_overall != uptake_main,
+         contact_limit_manual != window_main,
+         trace_neg_symptomatic == trace_neg_main)
+
 data_test <- comb_data %>% 
   filter(p_ident_sym == ascertainment_main,
          p_smartphone_overall == uptake_main,
@@ -201,6 +209,7 @@ grid_main <- grid_plot(data_main)
 grid_ascertainment <- grid_plot(data_ascertainment)
 grid_uptake <- grid_plot(data_uptake)
 grid_window <- grid_plot(data_window)
+grid_window_uptake <- grid_plot(data_window_uptake)
 grid_test <- grid_plot(data_test)
 
 cat("done.\n")
@@ -213,7 +222,7 @@ cat("\nSaving output...")
 
 save_fig <- function(path, graph){
   cowplot::save_plot(filename=path, plot=graph,
-                     ncol = 3.1, nrow = 2.25, base_height = plot_scale_in,
+                     ncol = 3.1, nrow = 2.32, base_height = plot_scale_in,
                      base_asp = 1.2)
 }
 
@@ -221,6 +230,7 @@ save_fig(main_path, grid_main)
 save_fig(ascertainment_path, grid_ascertainment)
 save_fig(uptake_path, grid_uptake)
 save_fig(window_path, grid_window)
+save_fig(window_uptake_path, grid_window_uptake)
 save_fig(test_path, grid_test)
 
 cat("done.\n")

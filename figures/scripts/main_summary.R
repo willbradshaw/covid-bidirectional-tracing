@@ -40,9 +40,11 @@ median_path <- snakemake@input[["median"]]
 
 # Specify output paths
 main_path <- snakemake@output[["main"]]
+comprehensive_path <- snakemake@output[["si_comprehensive"]]
 ascertainment_path <- snakemake@output[["si_ascertainment"]]
 test_path <- snakemake@output[["si_test"]]
 # main_path <- "output_files/dev_main_summary.png"
+# comprehensive_path <- "output_files/dev_si_summary_comprehensive.png"
 # ascertainment_path <- "output_files/dev_si_summary_ascertainment.png"
 # test_path <- "output_files/dev_si_summary_test.png"
 
@@ -144,15 +146,17 @@ label_levels <- c("No tracing", "Manual, 2-day",
                   "Hybrid, high-uptake, 2-day",
                   "Hybrid, high-uptake, 6-day")
 
-barplot_reff <- function(data, bar_width = bar_width_default){
+barplot_reff <- function(data, bar_width = bar_width_default,
+                         ylab = "Mean effective reproduction number",
+                         ylim = NA){
   g <- ggplot(data, aes(x=factor(label, levels=label_levels),
                         fill=backtrace_distance)) +
     geom_col(aes(y=effective_r0_mean), 
              position = "dodge", width=bar_width) +
     geom_hline(yintercept = 1, linetype = "dotted", size = 1, colour = "black") +
     geom_hline(aes(yintercept = r0_base), linetype = "dotted", size = 1, colour = "red") +
-    scale_y_continuous(name = "Mean effective reproduction number",
-                       limits = c(0,NA),
+    scale_y_continuous(name = ylab,
+                       limits = c(0,ylim),
                        breaks = seq(0,10,0.5),
                        expand = c(0,0)) +
     facet_grid(r0_base_lab~scenario_type, scales = "fixed",
@@ -181,8 +185,10 @@ label_current_practice <- function(g, data, yvar, blab_buffer, blab_colour,
 out_plot <- function(data, bar_width = bar_width_default,
                      blab_buffer = blab_buffer_default,
                      blab_colour = blab_colour_default,
-                     blab_label = blab_label_default){
-  barplot_reff(data, bar_width) %>%
+                     blab_label = blab_label_default,
+                     ylab = "Mean effective reproduction number",
+                     ylim = NA){
+  barplot_reff(data, bar_width, ylab, ylim) %>%
     label_current_practice(data, "effective_r0_mean", blab_buffer,
                            blab_colour, blab_label)
 }
@@ -191,7 +197,17 @@ out_plot <- function(data, bar_width = bar_width_default,
 # Make plots
 #------------------------------------------------------------------------------
 
-grid_main <- out_plot(data_main)
+# Main-text (R0 = 2.5, no digital columns)
+data_main_filtered <- data_main %>%
+  filter(r0_base == 2.5)#, trace_type != "Digital")
+grid_main <- out_plot(data_main_filtered,
+                      ylab = expression(paste("Mean ", italic(R)[eff])),
+                      ylim = 2.7) +
+  
+  theme(strip.text.y = element_blank())
+
+# SI plots (all R0 values, digital columns)
+grid_comprehensive <- out_plot(data_main)
 grid_ascertainment <- out_plot(data_ascertainment)
 grid_test <- out_plot(data_test)
 
@@ -203,13 +219,17 @@ cat("done.\n")
 
 cat("\nSaving output...")
 
-save_fig <- function(path, graph){
+save_fig <- function(path, graph, ncol = 3.1, nrow = 4){
   cowplot::save_plot(filename=path, plot=graph,
-                     ncol = 3.1, nrow = 4, base_height = plot_scale_in,
+                     ncol = ncol, nrow = nrow, base_height = plot_scale_in,
                      base_asp = 1/aspect_default)
 }
 
-save_fig(main_path, grid_main)
+# Main-text
+save_fig(main_path, grid_main, nrow = 2.2)
+
+# SI
+save_fig(comprehensive_path, grid_comprehensive)
 save_fig(ascertainment_path, grid_ascertainment)
 save_fig(test_path, grid_test)
 

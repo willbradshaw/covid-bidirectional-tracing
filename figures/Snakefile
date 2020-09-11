@@ -30,6 +30,8 @@ rule all:
         os.path.join(out_dir, "si_strategies-uptake-reff.png"),
         os.path.join(out_dir, "si_strategies-window-manual.png"),
         os.path.join(out_dir, "si_strategies-window-hybrid.png"),
+        os.path.join(out_dir, "si_digital-univ-reff.png"),
+        os.path.join(out_dir, "si_hybrid-delta-reff.png"),
         # Main-text ascertainment/sensitivity figure (+ associated SI)
         os.path.join(out_dir, "main_ascsens.png"),
         os.path.join(out_dir, "si_ascsens_contour_abs.png"),
@@ -81,10 +83,10 @@ rule main_strategies:
         main = os.path.join(out_dir, "main_strategies.png"),
         si_uptake_reff = os.path.join(out_dir, "si_strategies-uptake-reff.png"),
         si_digital_univ = os.path.join(out_dir, "si_digital-univ-reff.png"),
+        si_hybrid_delta = os.path.join(out_dir, "si_hybrid-delta-reff.png"),
     log: os.path.join(log_dir, "main_strategies.log")
     conda: env_main
     params:
-        uptake_main = 0.8,
         panel_scale_main = 13,
         panel_scale_si = 11,
     script: os.path.join(script_dir, "main_strategies.R")
@@ -152,6 +154,7 @@ rule main_r0:
         si_ascertainment = os.path.join(out_dir, "si_r0_ascertainment.png"),
         si_uptake = os.path.join(out_dir, "si_r0_uptake.png"),
         si_window = os.path.join(out_dir, "si_r0_window.png"),
+        si_window_uptake = os.path.join(out_dir, "si_r0_window_uptake.png"),
         si_test = os.path.join(out_dir, "si_r0_test.png"),
     log: os.path.join(log_dir, "main_r0.png")
     conda: env_main
@@ -216,6 +219,7 @@ rule main_summary:
         pessimistic = config["data"]["main"]["summary"]["pessimistic"],
     output:
         main = os.path.join(out_dir, "main_summary.png"),
+        si_comprehensive = os.path.join(out_dir, "si_summary_comprehensive.png"),
         si_ascertainment = os.path.join(out_dir, "si_summary_highasc.png"),
         si_test = os.path.join(out_dir, "si_summary_notest.png"),
     log: os.path.join(log_dir, "main_summary.png")

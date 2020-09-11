@@ -129,14 +129,14 @@ cat("done.\n")
 cat("\nAssembling final plot...")
 
 grid_reff <- plot_grid(reff_asc_main + theme(legend.position = "none") + ggtitle("Ascertainment"),
-                       reff_sens_test_main + theme(legend.position = "none") + ggtitle("Sensitivity\n(Test required)"),
                        reff_sens_notest_main + theme(legend.position = "none") + ggtitle("Sensitivity\n(Test not required)"),
+                       reff_sens_test_main + theme(legend.position = "none") + ggtitle("Sensitivity\n(Test required)"),
                       labels = "auto", nrow = 1, ncol = 3, align = "hv",
                       axis = "l", label_size = fontsize_base * fontscale_label,
                       label_fontfamily = titlefont, label_colour = "black")
 
 legend_a <- get_legend(reff_asc_main + theme(legend.justification = "center"))
-grid_out <- plot_grid(grid_reff, legend_a, ncol = 1, rel_heights = c(1, 0.1))
+grid_out <- plot_grid(grid_reff, legend_a, ncol = 1, rel_heights = c(1, 0.15))
 
 cat("done.\n")
 
@@ -147,6 +147,6 @@ cat("done.\n")
 cat("\nSaving output...")
 
 cowplot::save_plot(filename=main_path, plot=grid_out,
-                   ncol = 3, nrow = 1.1, base_height = plot_scale_in,
+                   ncol = 3, nrow = 1.15, base_height = plot_scale_in,
                    base_asp = 0.8)
 cat("done.\n")
