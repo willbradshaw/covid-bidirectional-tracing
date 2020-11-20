@@ -90,17 +90,29 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                        n_children = n_children_fn(asym),
                        trace_if_neg = ifelse(asym, FALSE, trace_neg_symptomatic),
                        processed = FALSE)] %>% # (Not actually immutable, but independent of tracing)
-        .[, `:=`(auto_traced_fwd = rep(!index, nrow(.)) & infector_has_smartphone & has_smartphone & 
-                     infector_shares_data_auto & !environmental &
-                     purrr::rbernoulli(nrow(.), p_traced_auto),
-                 auto_traced_rev = rep(!index, nrow(.)) & infector_has_smartphone & has_smartphone & 
-                     shares_data_auto & !environmental &
-                     purrr::rbernoulli(nrow(.), p_traced_auto),
+        .[, `:=`(auto_traced_fwd = rep(!index, nrow(.)) & # Not an index case
+                     infector_has_smartphone & # Infector has a smartphone
+                     has_smartphone & # This case has a smartphone
+                     infector_shares_data_auto & # Infector shares data
+                     !environmental & # Contact not environmental
+                     purrr::rbernoulli(nrow(.), p_traced_auto), # Contact is recorded
+                 auto_traced_rev = rep(!index, nrow(.)) & # Not an index case
+                     infector_has_smartphone & # Infector has a smartphone
+                     has_smartphone & # This case has a smartphone
+                     shares_data_auto & # This case shares data
+                     !environmental & # Contact not environmental
+                     purrr::rbernoulli(nrow(.), p_traced_auto), # Contact is recorded
                  onset_gen = exposure + incubation_time(nrow(.)))] %>%
-        .[, `:=`(manual_traced_fwd = (rep(!index, nrow(.)) & !auto_traced_fwd & !environmental &
-                     infector_shares_data_manual & purrr::rbernoulli(nrow(.), p_traced_manual)),
-                 manual_traced_rev = (rep(!index, nrow(.)) & !auto_traced_rev & !environmental &
-                     shares_data_manual & purrr::rbernoulli(nrow(.), p_traced_manual)))] %>%
+        .[, `:=`(manual_traced_fwd = (rep(!index, nrow(.)) & # Not an index case
+                     !auto_traced_fwd & # Not digitally traced
+                     !environmental & # Contact non environmental
+                     infector_shares_data_manual & # Infector shares data
+                     purrr::rbernoulli(nrow(.), p_traced_manual)), # Contact is recorded
+                 manual_traced_rev = (rep(!index, nrow(.)) & # Not an index case
+                     !auto_traced_rev & # Not digitally traced
+                     !environmental & # Contact not environmental
+                     shares_data_manual & # This case shares data
+                     purrr::rbernoulli(nrow(.), p_traced_manual)))] %>% # Contact is recorded
         .[, `:=`(traceable_fwd = (auto_traced_fwd | manual_traced_fwd),
                  traceable_rev = (auto_traced_rev | manual_traced_rev),
                  trace_delay_fwd = ifelse(auto_traced_fwd, trace_time_auto(nrow(.)),
