@@ -3,7 +3,14 @@
 # Date: 5 May 2020
 
 # Libraries and functions
-suppressMessages(library(tidyverse))
+suppressMessages(library(dplyr))
+suppressMessages(library(readr))
+suppressMessages(library(stringr))
+suppressMessages(library(stringi))
+suppressMessages(library(ggplot2))
+suppressMessages(library(purrr))
+suppressMessages(library(furrr))
+suppressMessages(library(ggplot2))
 suppressMessages(library(data.table))
 suppressMessages(library(sn))
 suppressMessages(library(parallel))
