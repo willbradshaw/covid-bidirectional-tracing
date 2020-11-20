@@ -19,7 +19,8 @@ set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
                                          test_time, test_sensitivity,
                                          test_serological, p_ident_sym,
                                          p_compliance_isolation,
-                                         p_data_sharing_auto, p_data_sharing_manual
+                                         p_data_sharing_auto, p_data_sharing_manual,
+                                         p_smartphone_listens, p_smartphone_chirps
                                          ){
     #' Set primary immutable keys for index cases
     data.table(case_id = 1:n_initial_cases,
@@ -32,17 +33,21 @@ set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
                isolates = purrr::rbernoulli(n_initial_cases, p_compliance_isolation),
                shares_data_auto = purrr::rbernoulli(n_initial_cases, p_data_sharing_auto),
                shares_data_manual = purrr::rbernoulli(n_initial_cases, p_data_sharing_manual),
+               smartphone_listens = purrr::rbernoulli(n_initial_cases, p_smartphone_listens),
+               smartphone_chirps  = purrr::rbernoulli(n_initial_cases, p_smartphone_chirps),
                generation = 0, infector_id = 0, infector_onset_gen = Inf,
                infector_exposure = Inf,
                infector_onset_true = Inf, infector_asym = NA, infector_recovery = Inf,
                infector_has_smartphone = NA, infector_shares_data_auto = FALSE,
-               infector_shares_data_manual = FALSE, infector_isolates = FALSE)
+               infector_shares_data_manual = FALSE, infector_isolates = FALSE,
+               infector_smartphone_listens = NA, infector_smartphone_chirps = NA)
 }
 
 set_primary_immutables_child <- function(parents, p_asymptomatic, p_compliance_isolation,
                                          test_time, test_serological,
                                          test_sensitivity, p_ident_sym, p_environmental,
-                                         p_data_sharing_auto, p_data_sharing_manual
+                                         p_data_sharing_auto, p_data_sharing_manual,
+                                         p_smartphone_listens, p_smartphone_chirps
                                          ){
     #' Set primary immutable keys for index cases
     n_children_total <- sum(parents$n_children)
@@ -57,6 +62,8 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_compliance_i
                               isolates = purrr::rbernoulli(n_children_total, p_compliance_isolation),
                               shares_data_auto = purrr::rbernoulli(n_children_total, p_data_sharing_auto),
                               shares_data_manual = purrr::rbernoulli(n_children_total, p_data_sharing_manual),
+                              smartphone_listens = purrr::rbernoulli(n_children_total, p_smartphone_listens),
+                              smartphone_chirps  = purrr::rbernoulli(n_children_total, p_smartphone_chirps),
                               generation = rep_new_cases(parents, "generation") + 1, # New generation number
                               infector_id = rep_new_cases(parents, "case_id"), # Parent case
                               infector_exposure = rep_new_cases(parents, "exposure"), # Exposure of parent (not used, but useful to know)
@@ -67,7 +74,10 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_compliance_i
                               infector_has_smartphone = rep_new_cases(parents, "has_smartphone"), # Does parent have smartphone?
                               infector_shares_data_auto = rep_new_cases(parents, "shares_data_auto"), # Does parent case share their contact data for tracing?
                               infector_shares_data_manual = rep_new_cases(parents, "shares_data_manual"), # Does parent case share their contact data for tracing?
-                              infector_isolates = rep_new_cases(parents, "isolates")) # Does parent comply with isolation?
+                              infector_isolates = rep_new_cases(parents, "isolates"),
+                              infector_smartphone_listens = rep_new_cases(parents, "smartphone_listens"), # Does parent's smartphone (if any) listen for chirps?
+                              infector_smartphone_chirps = rep_new_cases(parents, "smartphone_chirps"), # Does parent's smartphone (if any) broadcast chirps?
+                              )
     return(child_cases)
 }
 
@@ -90,15 +100,26 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                        n_children = n_children_fn(asym),
                        trace_if_neg = ifelse(asym, FALSE, trace_neg_symptomatic),
                        processed = FALSE)] %>% # (Not actually immutable, but independent of tracing)
+        .[, `:=`(smartphone_match_fwd_1way = infector_has_smartphone & has_smartphone & 
+                    infector_smartphone_chirps & smartphone_listens, # Compatible phones? (1-way)
+                smartphone_match_fwd_2way = ifelse(rep(!reciprocal_chirping, nrow(.)), FALSE,
+                    infector_has_smartphone & has_smartphone &
+                    smartphone_chirps & infector_smartphone_listens), # Compatible phones? (2-way)
+                 smartphone_match_rev_1way = infector_has_smartphone & has_smartphone & 
+                    smartphone_chirps & infector_smartphone_listens, # Compatible phones? (1-way)
+                smartphone_match_rev_2way = ifelse(rep(!reciprocal_chirping, nrow(.)), FALSE,
+                    infector_has_smartphone & has_smartphone &
+                    infector_smartphone_chirps & smartphone_listens), # Compatible phones? (2-way)
+                smartphone_match_fwd = smartphone_match_fwd_1way | smartphone_match_fwd_2way,
+                smartphone_match_rev = smartphone_match_rev_1way | smartphone_match_rev_2way)
+        ] %>%
         .[, `:=`(auto_traced_fwd = rep(!index, nrow(.)) & # Not an index case
-                     infector_has_smartphone & # Infector has a smartphone
-                     has_smartphone & # This case has a smartphone
+                     smartphone_match_fwd & # Compatible smartphones
                      infector_shares_data_auto & # Infector shares data
                      !environmental & # Contact not environmental
                      purrr::rbernoulli(nrow(.), p_traced_auto), # Contact is recorded
                  auto_traced_rev = rep(!index, nrow(.)) & # Not an index case
-                     infector_has_smartphone & # Infector has a smartphone
-                     has_smartphone & # This case has a smartphone
+                     smartphone_match_rev & # Compatible smartphones
                      shares_data_auto & # This case shares data
                      !environmental & # Contact not environmental
                      purrr::rbernoulli(nrow(.), p_traced_auto), # Contact is recorded
@@ -184,6 +205,7 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
                                contact_limit_auto, contact_limit_manual,
                                rollout_delay_gen, p_data_sharing_auto,
                                p_data_sharing_manual, p_compliance_isolation,
+                               p_smartphone_listens, p_smartphone_chirps,
                                rollout_delay_days, delay_time){
     #' Set up a table of index cases
     # Set immutable keys
@@ -195,7 +217,9 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
                                           p_ident_sym = p_ident_sym,
                                           p_compliance_isolation = p_compliance_isolation,
                                           p_data_sharing_auto = p_data_sharing_auto,
-                                          p_data_sharing_manual = p_data_sharing_manual)
+                                          p_data_sharing_manual = p_data_sharing_manual,
+                                          p_smartphone_listens = p_smartphone_listens,
+                                          p_smartphone_chirps = p_smartphone_chirps)
     cases <- set_secondary_immutables(cases = cases, index = TRUE, p_smartphone_overall = p_smartphone_overall,
                                       p_smartphone_infector_yes = NA, p_smartphone_infector_no = NA,
                                       generation_time = generation_time, n_children_fn = n_children_fn,
@@ -229,16 +253,20 @@ create_child_cases <- function(parents, p_asymptomatic, p_compliance_isolation,
                                contact_limit_auto, contact_limit_manual,
                                rollout_delay_gen, p_data_sharing_auto,
                                p_data_sharing_manual,
+                               p_smartphone_listens, p_smartphone_chirps,
                                rollout_delay_days, delay_time, p_environmental){
     #' Generate a table of new child cases from a table of parent cases
     # Set immutable keys
     cases <- set_primary_immutables_child(parents = parents, p_asymptomatic = p_asymptomatic,
                                           p_compliance_isolation = p_compliance_isolation,
                                           test_time = test_time, test_serological = test_serological,
-                                          test_sensitivity = test_sensitivity, p_ident_sym = p_ident_sym,
+                                          test_sensitivity = test_sensitivity,
+                                          p_ident_sym = p_ident_sym,
                                           p_environmental = p_environmental,
                                           p_data_sharing_auto = p_data_sharing_auto,
-                                          p_data_sharing_manual = p_data_sharing_manual)
+                                          p_data_sharing_manual = p_data_sharing_manual,
+                                          p_smartphone_listens = p_smartphone_listens,
+                                          p_smartphone_chirps = p_smartphone_chirps)
     cases <- set_secondary_immutables(cases = cases, index = FALSE, p_smartphone_overall = NA,
                                       p_smartphone_infector_yes = p_smartphone_infector_yes,
                                       p_smartphone_infector_no = p_smartphone_infector_no,
@@ -649,7 +677,9 @@ scenario_sim <- function(scenario = NULL, n_iterations = NULL, report = NULL,
                                     delay_time = delay_time,
                                     p_data_sharing_auto = scenario$p_data_sharing_auto,
                                     p_data_sharing_manual = scenario$p_data_sharing_manual,
-                                    p_compliance_isolation = scenario$p_compliance_isolation
+                                    p_compliance_isolation = scenario$p_compliance_isolation,
+                                    p_smartphone_listens = scenario$p_smartphone_listens,
+                                    p_smartphone_chirps = scenario$p_smartphone_chirps
                                     )
     child_case_fn <- purrr::partial(create_child_cases,
                                     p_asymptomatic = scenario$p_asymptomatic,
@@ -677,7 +707,9 @@ scenario_sim <- function(scenario = NULL, n_iterations = NULL, report = NULL,
                                     delay_time = delay_time,
                                     p_environmental = scenario$p_environmental,
                                     p_data_sharing_auto = scenario$p_data_sharing_auto,
-                                    p_data_sharing_manual = scenario$p_data_sharing_manual
+                                    p_data_sharing_manual = scenario$p_data_sharing_manual,
+                                    p_smartphone_listens = scenario$p_smartphone_listens,
+                                    p_smartphone_chirps = scenario$p_smartphone_chirps
                                     )
     # Execute runs
     iter_out <- purrr::map(.x = 1:n_iterations,

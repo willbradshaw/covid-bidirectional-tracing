@@ -23,6 +23,7 @@ numeric_keys <- c("r0_base", "rel_r0_asymptomatic", "dispersion", "generation_om
                   "p_traced_auto", "p_traced_manual",
                   "p_environmental", "p_compliance_isolation",
                   "p_data_sharing_auto", "p_data_sharing_manual",
+                  "p_smartphone_listens", "p_smartphone_chirps",
                   "test_sensitivity")
 for (k in numeric_keys){
     sp[[k]] <- as.numeric(unlist(sp[[k]]))

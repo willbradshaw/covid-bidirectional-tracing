@@ -45,6 +45,8 @@ scenario_parameters:
     p_compliance_isolation: 0.9 # Proportion of cases who comply with isolation/quarantine
     p_data_sharing_auto: 1 # Proportion of individuals who share/upload contact data for onward automated tracing
     p_data_sharing_manual: 0.9 # Proportion of individuals who share/upload contact data for onward manual tracing
+    p_smartphone_listens: 1 # Proportion of smartphones that listen for chirps from others
+    p_smartphone_chirps: 1 # Proportion of smartphones that broadcast chirps
     test_sensitivity: 0.9 # P(positive test|true case)
 
     # Numeric values (for infinities, write "Inf")
