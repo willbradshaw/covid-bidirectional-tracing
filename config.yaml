@@ -71,6 +71,7 @@ scenario_parameters:
     # Boolean switches
     test_serological: True # Whether testing can detect recovered individuals
     trace_neg_symptomatic: True # Whether symptomatic cases who test negative are traced
+    reciprocal_chirping: False # Whether a contact can be digitally traced using a chirping tracee and a listening trace originator (otherwise has to be the other way round)
 
     # Distributions (specified as R-function strings)
     incubation_time: "function(n) rlnorm(n=n, meanlog = 1.644, sdlog = 0.363)" # Time between exposure and symptom onset

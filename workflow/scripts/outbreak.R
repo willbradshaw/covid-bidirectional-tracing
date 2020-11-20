@@ -88,7 +88,8 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                                      incubation_time, p_traced_auto, p_traced_manual,
                                      trace_time_auto, trace_time_manual,
                                      recovery_time, data_limit_auto, data_limit_manual,
-                                     contact_limit_auto, contact_limit_manual){
+                                     contact_limit_auto, contact_limit_manual,
+                                     reciprocal_chirping){
     #' Set secondary immutable keys
     cases %>% .[, `:=`(has_smartphone = purrr::rbernoulli(nrow(.),
                                                           ifelse(rep(index, nrow(.)), p_smartphone_overall,
@@ -206,7 +207,8 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
                                rollout_delay_gen, p_data_sharing_auto,
                                p_data_sharing_manual, p_compliance_isolation,
                                p_smartphone_listens, p_smartphone_chirps,
-                               rollout_delay_days, delay_time){
+                               rollout_delay_days, delay_time,
+                               reciprocal_chirping){
     #' Set up a table of index cases
     # Set immutable keys
     cases <- set_primary_immutables_index(n_initial_cases = n_initial_cases,
@@ -229,7 +231,8 @@ create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
                                       trace_time_manual = trace_time_manual, recovery_time = recovery_time,
                                       data_limit_auto = data_limit_auto, data_limit_manual = data_limit_manual,
                                       contact_limit_auto = contact_limit_auto,
-                                      contact_limit_manual = contact_limit_manual)
+                                      contact_limit_manual = contact_limit_manual,
+                                      reciprocal_chirping = reciprocal_chirping)
     # Set identification time (dependent on rollout delay, ident_sym) and parent mutables
     cases <- cases %>% .[, `:=`(infector_ident_time = Inf,
                                 infector_quar_time = Inf,
@@ -254,7 +257,8 @@ create_child_cases <- function(parents, p_asymptomatic, p_compliance_isolation,
                                rollout_delay_gen, p_data_sharing_auto,
                                p_data_sharing_manual,
                                p_smartphone_listens, p_smartphone_chirps,
-                               rollout_delay_days, delay_time, p_environmental){
+                               rollout_delay_days, delay_time, p_environmental,
+                               reciprocal_chirping){
     #' Generate a table of new child cases from a table of parent cases
     # Set immutable keys
     cases <- set_primary_immutables_child(parents = parents, p_asymptomatic = p_asymptomatic,
@@ -277,7 +281,8 @@ create_child_cases <- function(parents, p_asymptomatic, p_compliance_isolation,
                                       trace_time_manual = trace_time_manual, recovery_time = recovery_time,
                                       data_limit_auto = data_limit_auto, data_limit_manual = data_limit_manual,
                                       contact_limit_auto = contact_limit_auto,
-                                      contact_limit_manual = contact_limit_manual)
+                                      contact_limit_manual = contact_limit_manual,
+                                      reciprocal_chirping = reciprocal_chirping)
     # Initialise parental mutables
     cases <- initialise_parental_mutables(cases, parents)
     # Initialise identification time
@@ -679,7 +684,8 @@ scenario_sim <- function(scenario = NULL, n_iterations = NULL, report = NULL,
                                     p_data_sharing_manual = scenario$p_data_sharing_manual,
                                     p_compliance_isolation = scenario$p_compliance_isolation,
                                     p_smartphone_listens = scenario$p_smartphone_listens,
-                                    p_smartphone_chirps = scenario$p_smartphone_chirps
+                                    p_smartphone_chirps = scenario$p_smartphone_chirps,
+                                    reciprocal_chirping = scenario$reciprocal_chirping
                                     )
     child_case_fn <- purrr::partial(create_child_cases,
                                     p_asymptomatic = scenario$p_asymptomatic,
@@ -709,7 +715,8 @@ scenario_sim <- function(scenario = NULL, n_iterations = NULL, report = NULL,
                                     p_data_sharing_auto = scenario$p_data_sharing_auto,
                                     p_data_sharing_manual = scenario$p_data_sharing_manual,
                                     p_smartphone_listens = scenario$p_smartphone_listens,
-                                    p_smartphone_chirps = scenario$p_smartphone_chirps
+                                    p_smartphone_chirps = scenario$p_smartphone_chirps,
+                                    reciprocal_chirping = scenario$reciprocal_chirping
                                     )
     # Execute runs
     iter_out <- purrr::map(.x = 1:n_iterations,
