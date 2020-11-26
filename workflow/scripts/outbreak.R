@@ -4,7 +4,7 @@
 # Date: 5 May 2020
 
 #----------------------------------------------------------------------------
-# Create new cases
+# Initialise case attributes
 #----------------------------------------------------------------------------
 
 map2_tab <- function(tab, col1, col2, fn){
@@ -20,7 +20,7 @@ set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
                                          test_serological, p_ident_sym,
                                          p_compliance_isolation,
                                          p_data_sharing_auto, p_data_sharing_manual,
-                                         p_smartphone_listens, p_smartphone_chirps
+                                         p_smartphone_chirps
                                          ){
     #' Set primary immutable keys for index cases
     data.table(case_id = 1:n_initial_cases,
@@ -33,8 +33,7 @@ set_primary_immutables_index <- function(n_initial_cases, p_asymptomatic,
                isolates = purrr::rbernoulli(n_initial_cases, p_compliance_isolation),
                shares_data_auto = purrr::rbernoulli(n_initial_cases, p_data_sharing_auto),
                shares_data_manual = purrr::rbernoulli(n_initial_cases, p_data_sharing_manual),
-               smartphone_listens = purrr::rbernoulli(n_initial_cases, p_smartphone_listens),
-               smartphone_chirps  = purrr::rbernoulli(n_initial_cases, p_smartphone_chirps),
+               smartphone_chirps = purrr::rbernoulli(n_initial_cases, p_smartphone_chirps),
                generation = 0, infector_id = 0, infector_onset_gen = Inf,
                infector_exposure = Inf,
                infector_onset_true = Inf, infector_asym = NA, infector_recovery = Inf,
@@ -47,7 +46,7 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_compliance_i
                                          test_time, test_serological,
                                          test_sensitivity, p_ident_sym, p_environmental,
                                          p_data_sharing_auto, p_data_sharing_manual,
-                                         p_smartphone_listens, p_smartphone_chirps
+                                         p_smartphone_chirps, chirp_index_only
                                          ){
     #' Set primary immutable keys for index cases
     n_children_total <- sum(parents$n_children)
@@ -62,8 +61,8 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_compliance_i
                               isolates = purrr::rbernoulli(n_children_total, p_compliance_isolation),
                               shares_data_auto = purrr::rbernoulli(n_children_total, p_data_sharing_auto),
                               shares_data_manual = purrr::rbernoulli(n_children_total, p_data_sharing_manual),
-                              smartphone_listens = purrr::rbernoulli(n_children_total, p_smartphone_listens),
-                              smartphone_chirps  = purrr::rbernoulli(n_children_total, p_smartphone_chirps),
+                              smartphone_chirps  = ifelse(rep(chirp_index_only, n_children_total), FALSE,
+                                                          purrr::rbernoulli(n_children_total, p_smartphone_chirps)), # Probability of smartphone chirping
                               generation = rep_new_cases(parents, "generation") + 1, # New generation number
                               infector_id = rep_new_cases(parents, "case_id"), # Parent case
                               infector_exposure = rep_new_cases(parents, "exposure"), # Exposure of parent (not used, but useful to know)
@@ -76,7 +75,7 @@ set_primary_immutables_child <- function(parents, p_asymptomatic, p_compliance_i
                               infector_shares_data_manual = rep_new_cases(parents, "shares_data_manual"), # Does parent case share their contact data for tracing?
                               infector_isolates = rep_new_cases(parents, "isolates"),
                               infector_smartphone_listens = rep_new_cases(parents, "smartphone_listens"), # Does parent's smartphone (if any) listen for chirps?
-                              infector_smartphone_chirps = rep_new_cases(parents, "smartphone_chirps"), # Does parent's smartphone (if any) broadcast chirps?
+                              infector_smartphone_chirps = rep_new_cases(parents, "smartphone_chirps") # Does parent's smartphone (if any) broadcast chirps?
                               )
     return(child_cases)
 }
@@ -89,7 +88,7 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                                      trace_time_auto, trace_time_manual,
                                      recovery_time, data_limit_auto, data_limit_manual,
                                      contact_limit_auto, contact_limit_manual,
-                                     reciprocal_chirping){
+                                     reciprocal_chirping, p_listen_no_chirp){
     #' Set secondary immutable keys
     cases %>% .[, `:=`(has_smartphone = purrr::rbernoulli(nrow(.),
                                                           ifelse(rep(index, nrow(.)), p_smartphone_overall,
@@ -100,6 +99,8 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                                          generation_time(infector_onset_gen)),
                        n_children = n_children_fn(asym),
                        trace_if_neg = ifelse(asym, FALSE, trace_neg_symptomatic),
+                       smartphone_listens = ifelse(smartphone_chirps, TRUE,
+                                                   purrr::rbernoulli(nrow(.), p_listen_no_chirp)),
                        processed = FALSE)] %>% # (Not actually immutable, but independent of tracing)
         .[, `:=`(smartphone_match_fwd_1way = infector_has_smartphone & has_smartphone & 
                     infector_smartphone_chirps & smartphone_listens, # Compatible phones? (1-way)
@@ -110,10 +111,10 @@ set_secondary_immutables <- function(cases, index, p_smartphone_overall,
                     smartphone_chirps & infector_smartphone_listens, # Compatible phones? (1-way)
                 smartphone_match_rev_2way = ifelse(rep(!reciprocal_chirping, nrow(.)), FALSE,
                     infector_has_smartphone & has_smartphone &
-                    infector_smartphone_chirps & smartphone_listens), # Compatible phones? (2-way)
-                smartphone_match_fwd = smartphone_match_fwd_1way | smartphone_match_fwd_2way,
-                smartphone_match_rev = smartphone_match_rev_1way | smartphone_match_rev_2way)
+                    infector_smartphone_chirps & smartphone_listens)) # Compatible phones? (2-way)
         ] %>%
+        .[, `:=`(smartphone_match_fwd = smartphone_match_fwd_1way | smartphone_match_fwd_2way,
+                 smartphone_match_rev = smartphone_match_rev_1way | smartphone_match_rev_2way)] %>%
         .[, `:=`(auto_traced_fwd = rep(!index, nrow(.)) & # Not an index case
                      smartphone_match_fwd & # Compatible smartphones
                      infector_shares_data_auto & # Infector shares data
@@ -195,103 +196,40 @@ set_nonparental_mutables <- function(cases){
                  )]
 }
 
-create_index_cases <- function(n_initial_cases, p_asymptomatic, test_time,
-                               test_sensitivity, test_serological, p_ident_sym, 
-                               p_smartphone_overall, n_children_fn,
-                               trace_neg_symptomatic,
-                               incubation_time, p_traced_auto,
-                               p_traced_manual, trace_time_auto,
-                               trace_time_manual, recovery_time,
-                               data_limit_auto, data_limit_manual,
-                               contact_limit_auto, contact_limit_manual,
-                               rollout_delay_gen, p_data_sharing_auto,
-                               p_data_sharing_manual, p_compliance_isolation,
-                               p_smartphone_listens, p_smartphone_chirps,
-                               rollout_delay_days, delay_time,
-                               reciprocal_chirping){
+#----------------------------------------------------------------------------
+# Create new cases
+#----------------------------------------------------------------------------
+
+create_index_cases <- function(index_primary_immutables_fn, secondary_immutables_fn,
+                               identification_time_fn){
     #' Set up a table of index cases
     # Set immutable keys
-    cases <- set_primary_immutables_index(n_initial_cases = n_initial_cases,
-                                          p_asymptomatic = p_asymptomatic,
-                                          test_time = test_time,
-                                          test_sensitivity = test_sensitivity,
-                                          test_serological = test_serological,
-                                          p_ident_sym = p_ident_sym,
-                                          p_compliance_isolation = p_compliance_isolation,
-                                          p_data_sharing_auto = p_data_sharing_auto,
-                                          p_data_sharing_manual = p_data_sharing_manual,
-                                          p_smartphone_listens = p_smartphone_listens,
-                                          p_smartphone_chirps = p_smartphone_chirps)
-    cases <- set_secondary_immutables(cases = cases, index = TRUE, p_smartphone_overall = p_smartphone_overall,
-                                      p_smartphone_infector_yes = NA, p_smartphone_infector_no = NA,
-                                      generation_time = generation_time, n_children_fn = n_children_fn,
-                                      trace_neg_symptomatic = trace_neg_symptomatic,
-                                      incubation_time = incubation_time, p_traced_auto = p_traced_auto, 
-                                      p_traced_manual = p_traced_manual, trace_time_auto = trace_time_auto,
-                                      trace_time_manual = trace_time_manual, recovery_time = recovery_time,
-                                      data_limit_auto = data_limit_auto, data_limit_manual = data_limit_manual,
-                                      contact_limit_auto = contact_limit_auto,
-                                      contact_limit_manual = contact_limit_manual,
-                                      reciprocal_chirping = reciprocal_chirping)
+    cases <- index_primary_immutables_fn()
+    cases <- secondary_immutables_fn(cases = cases, index = TRUE)
     # Set identification time (dependent on rollout delay, ident_sym) and parent mutables
     cases <- cases %>% .[, `:=`(infector_ident_time = Inf,
                                 infector_quar_time = Inf,
                                 infector_iso_time = Inf,
                                 infector_trace_init_time = Inf)]
-    cases <- initialise_identification_time(cases = cases, delay_time = delay_time,
-                                            rollout_delay_gen = rollout_delay_gen, 
-                                            rollout_delay_days = rollout_delay_days)
+    cases <- identification_time_fn(cases = cases)
     # Set other mutable keys
     cases <- set_nonparental_mutables(cases)
     return(cases)
 }
 
-create_child_cases <- function(parents, p_asymptomatic, p_compliance_isolation,
-                               test_time, test_sensitivity, test_serological,
-                               p_ident_sym, p_smartphone_infector_yes, p_smartphone_infector_no,
-                               generation_time, n_children_fn, trace_neg_symptomatic,
-                               incubation_time, p_traced_auto,
-                               p_traced_manual, trace_time_auto, trace_time_manual,
-                               recovery_time, data_limit_auto, data_limit_manual,
-                               contact_limit_auto, contact_limit_manual,
-                               rollout_delay_gen, p_data_sharing_auto,
-                               p_data_sharing_manual,
-                               p_smartphone_listens, p_smartphone_chirps,
-                               rollout_delay_days, delay_time, p_environmental,
-                               reciprocal_chirping){
+create_child_cases <- function(parents, child_primary_immutables_fn,
+                               secondary_immutables_fn, identification_time_fn){
     #' Generate a table of new child cases from a table of parent cases
     # Set immutable keys
-    cases <- set_primary_immutables_child(parents = parents, p_asymptomatic = p_asymptomatic,
-                                          p_compliance_isolation = p_compliance_isolation,
-                                          test_time = test_time, test_serological = test_serological,
-                                          test_sensitivity = test_sensitivity,
-                                          p_ident_sym = p_ident_sym,
-                                          p_environmental = p_environmental,
-                                          p_data_sharing_auto = p_data_sharing_auto,
-                                          p_data_sharing_manual = p_data_sharing_manual,
-                                          p_smartphone_listens = p_smartphone_listens,
-                                          p_smartphone_chirps = p_smartphone_chirps)
-    cases <- set_secondary_immutables(cases = cases, index = FALSE, p_smartphone_overall = NA,
-                                      p_smartphone_infector_yes = p_smartphone_infector_yes,
-                                      p_smartphone_infector_no = p_smartphone_infector_no,
-                                      generation_time = generation_time, n_children_fn = n_children_fn,
-                                      trace_neg_symptomatic = trace_neg_symptomatic,
-                                      incubation_time = incubation_time, p_traced_auto = p_traced_auto, 
-                                      p_traced_manual = p_traced_manual, trace_time_auto = trace_time_auto,
-                                      trace_time_manual = trace_time_manual, recovery_time = recovery_time,
-                                      data_limit_auto = data_limit_auto, data_limit_manual = data_limit_manual,
-                                      contact_limit_auto = contact_limit_auto,
-                                      contact_limit_manual = contact_limit_manual,
-                                      reciprocal_chirping = reciprocal_chirping)
+    cases <- child_primary_immutables_fn(parents = parents)
+    cases <- secondary_immutables_fn(cases = cases, index = FALSE)
     # Initialise parental mutables
     cases <- initialise_parental_mutables(cases, parents)
     # Initialise identification time
-    cases <- initialise_identification_time(cases = cases, delay_time = delay_time,
-                                            rollout_delay_gen = rollout_delay_gen, 
-                                            rollout_delay_days = rollout_delay_days)
+    cases <- identification_time_fn(cases = cases)
     # Initialise other nonparental mutables
     cases <- set_nonparental_mutables(cases)
-    # Remove (hopefully very few) cases that were exposed after parental recovery time
+    # Remove cases that were exposed after parental recovery time
     cases <- cases[exposure < infector_recovery]
     return(cases)
 }
@@ -549,6 +487,31 @@ write_dfile <- function(data, path_prefix, compress = TRUE){
     close(dfile)
 }
 
+summarise_write_data <- function(cases = NULL, scenario_data = NULL,
+                                 write_raw = NULL, write_weekly = NULL,
+                                 write_generational = NULL, path_prefix = NULL,
+                                 compress = NULL){
+    # Summarise and write run data
+    cases[, `:=`(scenario=scenario_data$scenario, run=scenario_data$run)]
+    cases_out <- as.data.table(scenario_data)[cases, on=c("scenario", "run")]
+    # Summarise and write
+    path_prefix <- paste(path_prefix, scenario_data$scenario, scenario_data$run,
+                         sep="_")
+    if (write_raw){
+        write_dfile(cases_out, paste0(path_prefix, "_raw"), compress)
+    }
+    if (write_weekly){
+        week_data <- summarise_by_week(cases_out, colnames(scenario_data))
+        write_dfile(week_data, paste0(path_prefix, "_weekly"), compress)
+    }
+    if (write_generational){
+        gen_data <- summarise_by_generation(cases_out, colnames(scenario_data))
+        write_dfile(gen_data, paste0(path_prefix, "_gen"), compress)
+    }
+    run_data <- summarise_by_run(cases_out, colnames(scenario_data))
+    return(run_data)
+}
+
 #----------------------------------------------------------------------------
 # Outer simulation functions
 #----------------------------------------------------------------------------
@@ -556,7 +519,7 @@ write_dfile <- function(data, path_prefix, compress = TRUE){
 outbreak_step <- function(case_data = NULL,
                           child_case_fn = NULL,
                           backtrace_distance = NULL){
-    #' Move forward one generation in the branching process
+    # Move forward one generation in the branching process
     # 1. Separate current parents from previous generations and check for new cases
     case_data_old <- case_data[processed == TRUE]
     case_data_new <- case_data[processed == FALSE]
@@ -576,40 +539,31 @@ outbreak_step <- function(case_data = NULL,
     return(cases_out)
 }
 
-run_outbreak <- function(index_case_fn = NULL, child_case_fn = NULL,
-                         write_raw = NULL, write_weekly = NULL,
-                         write_generational = NULL, path_prefix = NULL,
-                         compress = NULL, scenario_data = NULL){
-    #' Run a single complete instance of the branching-process model
+test_outbreak_loop <- function(case_data = NULL,
+                               cap_max_weeks = NULL,
+                               cap_cases = NULL,
+                               cap_max_generations = NULL){
+    #' Determine whether to continue with an outbreak loop
+    time_limit <- max(case_data$exposure)/7 < cap_max_weeks
+    case_limit <- nrow(case_data) < cap_cases
+    gen_limit  <- max(case_data$generation) < cap_max_generations
+    extinction <- any(!case_data$processed)
+    return(time_limit & case_limit & gen_limit & extinction)
+}
+
+run_outbreak <- function(index_case_fn = NULL, outbreak_step_fn = NULL,
+                         test_loop_fn = NULL, summarise_write_fn = NULL,
+                         scenario_data = NULL){
+    # Run a single complete instance of the branching-process model
     # Set up initial cases
     case_data <- index_case_fn()
     # Run outbreak loop
-    while (max(case_data$exposure)/7 < scenario_data$cap_max_weeks & # Time limit
-           nrow(case_data) < scenario_data$cap_cases & # Cumulative case limit
-           max(case_data$generation) < scenario_data$cap_max_generations & # Generation limit
-           any(!case_data$processed)){ # Extinction condition
-        case_data <- outbreak_step(case_data = case_data,
-                                   child_case_fn = child_case_fn,
-                                   backtrace_distance = scenario_data$backtrace_distance)
-        #gc(verbose=FALSE, full=TRUE)
+    while (test_loop_fn(case_data = case_data)){
+        case_data <- outbreak_step_fn(case_data = case_data)
     }
     # Summarise and write
-    case_data[, `:=`(scenario=scenario_data$scenario, run=scenario_data$run)]
-    cases_out <- as.data.table(scenario_data)[case_data, on=c("scenario", "run")]
-    path_prefix <- paste(path_prefix, scenario_data$scenario, scenario_data$run,
-                         sep="_")
-    if (write_raw){
-        write_dfile(cases_out, paste0(path_prefix, "_raw"), compress)
-    }
-    if (write_weekly){
-        week_data <- summarise_by_week(cases_out, colnames(scenario_data))
-        write_dfile(week_data, paste0(path_prefix, "_weekly"), compress)
-    }
-    if (write_generational){
-        gen_data <- summarise_by_generation(cases_out, colnames(scenario_data))
-        write_dfile(gen_data, paste0(path_prefix, "_gen"), compress)
-    }
-    run_data <- summarise_by_run(cases_out, colnames(scenario_data))
+    run_data <- summarise_write_fn(cases = case_data,
+                                   scenario_data = scenario_data)
     gc(verbose=FALSE, full=TRUE)
     return(run_data)
 }
@@ -640,6 +594,8 @@ scenario_sim <- function(scenario = NULL, n_iterations = NULL, report = NULL,
     p_traced_auto <- ifelse(scenario$p_traced_auto < 0,
                               scenario$p_traced_manual,
                               scenario$p_traced_auto)
+    #if (report) cat("Scenario ", scenario$scenario,
+    #                " derived parameters: done.\n", sep="")
     # Prepare fixed-shape distributions
     n_children_fn <- function(asym) rnbinom(n=length(asym), size=scenario$dispersion,
                                             mu=ifelse(asym, r0_asymptomatic,
@@ -658,74 +614,86 @@ scenario_sim <- function(scenario = NULL, n_iterations = NULL, report = NULL,
     trace_time_auto <- eval(parse(text=scenario$trace_time_auto))
     trace_time_manual <- eval(parse(text=scenario$trace_time_manual))
     delay_time <- eval(parse(text=scenario$delay_time))
-    # Prepare case creation functions
-    index_case_fn <- purrr::partial(create_index_cases, n_initial_cases = scenario$n_initial_cases,
-                                    p_asymptomatic = scenario$p_asymptomatic,
-                                    test_time = test_time, test_sensitivity = scenario$test_sensitivity,
-                                    test_serological = scenario$test_serological,
-                                    p_ident_sym = scenario$p_ident_sym,
-                                    p_smartphone_overall = scenario$p_smartphone_overall,
-                                    n_children_fn = n_children_fn,
-                                    trace_neg_symptomatic = scenario$trace_neg_symptomatic,
-                                    incubation_time = incubation_time,
-                                    p_traced_auto = p_traced_auto,
-                                    p_traced_manual = p_traced_manual,
-                                    trace_time_auto = trace_time_auto,
-                                    trace_time_manual = trace_time_manual,
-                                    recovery_time = recovery_time,
-                                    data_limit_auto = scenario$data_limit_auto,
-                                    data_limit_manual = scenario$data_limit_manual,
-                                    contact_limit_auto = scenario$contact_limit_auto,
-                                    contact_limit_manual = scenario$contact_limit_manual,
+    #if (report) cat("Scenario ", scenario$scenario,
+    #                " distribution functions: done.\n", sep="")
+    # Prepare partial functions
+    # Primary immutables
+    index_primary_fn <- purrr::partial(set_primary_immutables_index,
+                                       n_initial_cases = scenario$n_initial_cases,
+                                       p_asymptomatic = scenario$p_asymptomatic,
+                                       test_time = test_time,
+                                       test_sensitivity = scenario$test_sensitivity,
+                                       test_serological = scenario$test_serological,
+                                       p_ident_sym = scenario$p_ident_sym,
+                                       p_compliance_isolation = scenario$p_compliance_isolation,
+                                       p_data_sharing_auto = scenario$p_data_sharing_auto,
+                                       p_data_sharing_manual = scenario$p_data_sharing_manual,
+                                       p_smartphone_chirps = scenario$p_smartphone_chirps)
+    child_primary_fn <- purrr::partial(set_primary_immutables_child,
+                                       p_asymptomatic = scenario$p_asymptomatic,
+                                       p_compliance_isolation = scenario$p_compliance_isolation,
+                                       test_time = test_time,
+                                       test_sensitivity = scenario$test_sensitivity,
+                                       test_serological = scenario$test_serological,
+                                       p_ident_sym = scenario$p_ident_sym,
+                                       p_environmental = scenario$p_environmental,
+                                       p_data_sharing_auto = scenario$p_data_sharing_auto,
+                                       p_data_sharing_manual = scenario$p_data_sharing_manual,
+                                       p_smartphone_chirps = scenario$p_smartphone_chirps,
+                                       chirp_index_only = scenario$chirp_index_only)
+    # Secondary immutables
+    secondary_fn     <- purrr::partial(set_secondary_immutables,
+                                       p_smartphone_overall = scenario$p_smartphone_overall,
+                                       p_smartphone_infector_yes = p_smartphone_infector_yes,
+                                       p_smartphone_infector_no = p_smartphone_infector_no,
+                                       generation_time = generation_time,
+                                       incubation_time = incubation_time,
+                                       n_children_fn = n_children_fn,
+                                       trace_neg_symptomatic = scenario$trace_neg_symptomatic,
+                                       p_traced_auto = p_traced_auto,
+                                       p_traced_manual = p_traced_manual,
+                                       trace_time_auto = trace_time_auto,
+                                       trace_time_manual = trace_time_manual,
+                                       recovery_time = recovery_time,
+                                       data_limit_auto = scenario$data_limit_auto,
+                                       data_limit_manual = scenario$data_limit_manual,
+                                       contact_limit_auto = scenario$contact_limit_auto,
+                                       contact_limit_manual = scenario$contact_limit_manual,
+                                       reciprocal_chirping = scenario$reciprocal_chirping,
+                                       p_listen_no_chirp = scenario$p_listen_no_chirp)
+    # Identification time
+    ident_time_fn <- purrr::partial(initialise_identification_time,
                                     rollout_delay_gen = scenario$rollout_delay_gen,
                                     rollout_delay_days = scenario$rollout_delay_days,
-                                    delay_time = delay_time,
-                                    p_data_sharing_auto = scenario$p_data_sharing_auto,
-                                    p_data_sharing_manual = scenario$p_data_sharing_manual,
-                                    p_compliance_isolation = scenario$p_compliance_isolation,
-                                    p_smartphone_listens = scenario$p_smartphone_listens,
-                                    p_smartphone_chirps = scenario$p_smartphone_chirps,
-                                    reciprocal_chirping = scenario$reciprocal_chirping
-                                    )
+                                    delay_time = delay_time)
+    # Case creation
+    index_case_fn <- purrr::partial(create_index_cases,
+                                    index_primary_immutables_fn = index_primary_fn,
+                                    secondary_immutables_fn = secondary_fn,
+                                    identification_time_fn = ident_time_fn)
     child_case_fn <- purrr::partial(create_child_cases,
-                                    p_asymptomatic = scenario$p_asymptomatic,
-                                    p_compliance_isolation = scenario$p_compliance_isolation,
-                                    test_time = test_time, test_sensitivity = scenario$test_sensitivity,
-                                    test_serological = scenario$test_serological,
-                                    p_ident_sym = scenario$p_ident_sym,
-                                    p_smartphone_infector_yes = p_smartphone_infector_yes,
-                                    p_smartphone_infector_no = p_smartphone_infector_no,
-                                    generation_time = generation_time,
-                                    n_children_fn = n_children_fn,
-                                    trace_neg_symptomatic = scenario$trace_neg_symptomatic,
-                                    incubation_time = incubation_time,
-                                    p_traced_auto = p_traced_auto,
-                                    p_traced_manual = p_traced_manual,
-                                    trace_time_auto = trace_time_auto,
-                                    trace_time_manual = trace_time_manual,
-                                    recovery_time = recovery_time,
-                                    data_limit_auto = scenario$data_limit_auto,
-                                    data_limit_manual = scenario$data_limit_manual,
-                                    contact_limit_auto = scenario$contact_limit_auto,
-                                    contact_limit_manual = scenario$contact_limit_manual,
-                                    rollout_delay_gen = scenario$rollout_delay_gen,
-                                    rollout_delay_days = scenario$rollout_delay_days,
-                                    delay_time = delay_time,
-                                    p_environmental = scenario$p_environmental,
-                                    p_data_sharing_auto = scenario$p_data_sharing_auto,
-                                    p_data_sharing_manual = scenario$p_data_sharing_manual,
-                                    p_smartphone_listens = scenario$p_smartphone_listens,
-                                    p_smartphone_chirps = scenario$p_smartphone_chirps,
-                                    reciprocal_chirping = scenario$reciprocal_chirping
-                                    )
+                                    child_primary_immutables_fn = child_primary_fn,
+                                    secondary_immutables_fn = secondary_fn,
+                                    identification_time_fn = ident_time_fn)
+    # Outbreak management
+    test_loop_fn <- purrr::partial(test_outbreak_loop,
+                                   cap_max_weeks = scenario$cap_max_weeks,
+                                   cap_cases = scenario$cap_cases,
+                                   cap_max_generations = scenario$cap_max_generations)
+    summarise_write_fn <- purrr::partial(summarise_write_data,
+                                         write_raw = write_raw, write_weekly = write_weekly,
+                                         write_generational = write_generational,
+                                         path_prefix = path_prefix, compress = compress)
+    outbreak_step_fn <- purrr::partial(outbreak_step, child_case_fn = child_case_fn,
+                                       backtrace_distance = scenario$backtrace_distance)
+    #if (report) cat("Scenario ", scenario$scenario,
+    #                " partial functions: done.\n", sep="")
     # Execute runs
     iter_out <- purrr::map(.x = 1:n_iterations,
                            ~ run_outbreak(index_case_fn = index_case_fn,
-                                          child_case_fn = child_case_fn,
-                                          write_raw = write_raw, write_weekly = write_weekly,
-                                          write_generational = write_generational,
-                                          path_prefix = path_prefix, 
-                                          compress = compress,
+                                          outbreak_step_fn = outbreak_step_fn,
+                                          test_loop_fn = test_loop_fn,
+                                          summarise_write_fn = summarise_write_fn,
                                           scenario_data = scenario %>% mutate(run=.x)))
     # Concatenate and write
     run_data <- iter_out %>% rbindlist

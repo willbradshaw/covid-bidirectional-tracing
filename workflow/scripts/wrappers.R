@@ -8,13 +8,15 @@
 #------------------------------------------------------------------------------
 
 parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
-                            threads = NULL, show_progress = NULL, report = NULL,
+                            threads = NULL, report = NULL,
                             write_raw = NULL, write_weekly = NULL,
                             write_generational = NULL, write_run = NULL,
                             path_prefix = NULL, compress = NULL, ci_width = NULL,
                             alpha_prior = NULL, beta_prior = NULL){
     #' Run one set of simulations for each scenario in a table of scenarios
     # Nest scenarios into sub-tables
+    cat("Initialising paramater sweep at ", date(), "\n", sep="")
+    cat("Sweeping over ", nrow(scenarios), " scenarios.\n", sep="")
     sim_fn <- function(n) scenario_sim(scenario = scenarios[n,],
                                        n_iterations = n_iterations,
                                        report = report,
@@ -28,7 +30,14 @@ parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
                                        alpha_prior = alpha_prior,
                                        beta_prior = beta_prior)
     sim_data <- mclapply(1:nrow(scenarios), sim_fn, mc.cores = threads)
+    # Scan for and report errors
+    classes <- sapply(sim_data, function(x) class(x)[1])
+    classes_error <- which(classes == "try-error")
+    for (n in classes_error){
+        cat("Error in thread", n, ":", sim_data[[n]][1], "\n")
+    }
     #print(sim_data)
+    cat("Concluding paramater sweep at ", date(), "\n", sep="")
     return(sim_data %>% rbindlist)
 }
 
@@ -38,7 +47,7 @@ parameter_sweep <- function(scenarios = NULL, n_iterations = NULL,
 
 simulate_process <- function(scenario_parameters = NULL, n_iterations = NULL,
                              report = NULL, threads = NULL,
-                             show_progress = NULL, path_prefix = NULL,
+                             path_prefix = NULL,
                              write_raw = NULL, write_weekly = NULL,
                              write_generational = NULL, write_run = NULL,
                              compress_output = NULL,
@@ -63,7 +72,6 @@ simulate_process <- function(scenario_parameters = NULL, n_iterations = NULL,
   # 2. Run parameter sweep
   sweep <- parameter_sweep(scenarios = scenarios, n_iterations = n_iterations,
                            report = report, threads = threads,
-                           show_progress = show_progress,
                            path_prefix = path_prefix,
                            write_raw = write_raw, write_weekly = write_weekly,
                            write_generational = write_generational,

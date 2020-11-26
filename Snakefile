@@ -32,6 +32,5 @@ rule run_simulation:
         output_parameters = config["output_parameters"],
         ci_parameters = config["ci_parameters"],
         report = config["print_reports"],
-        show_progress = config["show_progress"],
     conda: config["env_path"]
     script: "workflow/scripts/run_simulation_snakemake.R"

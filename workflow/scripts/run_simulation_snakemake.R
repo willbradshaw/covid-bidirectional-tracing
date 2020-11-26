@@ -3,10 +3,11 @@
 # Date: 5 May 2020
 
 # Libraries and functions
-suppressMessages(library(dplyr))
+#suppressMessages(library(stringi))
+suppressMessages(library(tidyr))
 suppressMessages(library(readr))
+suppressMessages(library(dplyr))
 suppressMessages(library(stringr))
-suppressMessages(library(stringi))
 suppressMessages(library(ggplot2))
 suppressMessages(library(purrr))
 suppressMessages(library(furrr))
@@ -30,7 +31,7 @@ numeric_keys <- c("r0_base", "rel_r0_asymptomatic", "dispersion", "generation_om
                   "p_traced_auto", "p_traced_manual",
                   "p_environmental", "p_compliance_isolation",
                   "p_data_sharing_auto", "p_data_sharing_manual",
-                  "p_smartphone_listens", "p_smartphone_chirps",
+                  "p_listen_no_chirp", "p_smartphone_chirps",
                   "test_sensitivity")
 for (k in numeric_keys){
     sp[[k]] <- as.numeric(unlist(sp[[k]]))
@@ -41,7 +42,6 @@ simulate_process(scenario_parameters = sp,
                  threads = snakemake@threads,
                  n_iterations = snakemake@params[["n_iterations"]],
                  report = snakemake@params[["report"]],
-                 show_progress = snakemake@params[["show_progress"]],
                  path_prefix = snakemake@params[["path_prefix"]],
                  write_raw = snakemake@params[["output_parameters"]][["write_raw"]],
                  write_weekly = snakemake@params[["output_parameters"]][["write_weekly"]],
