@@ -1,14 +1,14 @@
-# Bidirectional contact tracing is required for reliable COVID-19 control
+# Bidirectional contact tracing could dramatically improve COVID-19 control
 
 William J. Bradshaw, Ethan C. Alley, Jonathan H. Huggins, Alun L. Lloyd, and Kevin M. Esvelt
 
-DOI: https://doi.org/10.1101/2020.05.06.20093369 (medRxiv preprint)
+DOI: https://doi.org/10.1038/s41467-020-20325-7 (*Nature Communications* paper)
 
 Adapted from code originally published [here](https://github.com/cmmid/ringbp). 
  
 ## Abstract 
 
-Contact tracing is critical to limiting the spread of pandemics such as COVID-19, but most protocols only “forward-trace” to notify people who were recently exposed. Using a stochastic branching process model, we find that “bidirectional” tracing to identify infector individuals robustly outperforms forward-only approaches across a wide range of scenarios. Rapid smartphone-based exposure notification underperformed conventional manual tracing unless uptake of the digital system was near-universal; however, the combination of manual and digital approaches outperforms either approach used in isolation. Taken together, the combination of manual, digital, and bidirectional tracing more than doubles the probability of controlling outbreaks across three epidemiological scenarios, but only when exposure events can be detected by nearly all smartphones. Implementing combined bidirectional tracing may be critical to controlling COVID-19 without more costly interventions.
+Contact tracing is critical to controlling COVID-19, but most protocols only “forward-trace” to notify people who were recently exposed. Using a stochastic branching-process model, we find that “bidirectional” tracing to identify infector individuals and their other infectees robustly improves outbreak control. In our model, bidirectional tracing more than doubles the reduction in effective reproduction number (R_eff) achieved by forward-tracing alone, while dramatically increasing resilience to low case ascertainment and test sensitivity. The greatest gains are realised by expanding the manual tracing window from 2 to 6 days pre-symptom-onset or, alternatively, by implementing high-uptake smartphone-based exposure notification; however, to achieve the performance of the former approach, the latter requires nearly all smartphones to detect exposure events. With or without exposure notification, our results suggest that implementing bidirectional tracing could dramatically improve COVID-19 control.
 
 ## Usage
 
